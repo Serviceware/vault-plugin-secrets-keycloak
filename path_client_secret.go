@@ -13,7 +13,7 @@ func pathClientSecret(b *backend) *framework.Path {
 	return &framework.Path{
 		Pattern: "client-secret/" + framework.GenericNameRegex("clientId"),
 		Fields: map[string]*framework.FieldSchema{
-			"name": {
+			"clientId": {
 				Type:        framework.TypeString,
 				Description: "Name of the client.",
 			},
@@ -27,7 +27,7 @@ func pathClientSecret(b *backend) *framework.Path {
 func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	clientId := d.Get("clientId").(string)
 	if clientId == "" {
-		return logical.ErrorResponse("missing clientId"), nil
+		return logical.ErrorResponse("missing client"), nil
 	}
 
 	config, err := readConfig(ctx, req.Storage)
@@ -67,7 +67,7 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 	// Generate the response
 	response := &logical.Response{
 		Data: map[string]interface{}{
-			"client_secret": creds.Value,
+			"client_secret": *creds.Value,
 		},
 	}
 

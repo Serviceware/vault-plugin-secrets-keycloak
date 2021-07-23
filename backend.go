@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
-// backend wraps the backend framework and adds a map for storing key value pairs
 type backend struct {
 	*framework.Backend
 
@@ -93,6 +92,12 @@ func (b *backend) Client(ctx context.Context, s logical.Storage) (gocloak.GoCloa
 	b.gocloakClient = gocloak.NewClient(connConfig.ServerUrl)
 
 	return b.gocloakClient, nil
+}
+func (b *backend) resetClient(_ context.Context) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	b.gocloakClient = nil
 }
 
 const keycloakHelp = `
