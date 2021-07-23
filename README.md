@@ -36,5 +36,12 @@ make build && make start
 ```
 
 ```
-make enable && vault read keycloak-secrets/foo
+make enable
+vault write keycloak/config/connection \
+    connection_uri="http://localhost:8080" \
+    realm="master" \
+    client_id="vault" \
+    client_secret="sec3t"
+
+vault read keycloak/client-secret/foo
 ```
