@@ -2,6 +2,7 @@ package keycloak
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -35,6 +36,7 @@ func pathConfigConnection(b *backend) *framework.Path {
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.UpdateOperation: b.pathConnectionUpdate,
+			logical.ReadOperation:   b.pathConnectionRead,
 		},
 	}
 }
@@ -59,22 +61,44 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 		return logical.ErrorResponse("missing client_secret"), nil
 	}
 
-	// Store it
 	config := connectionConfig{
 		ServerUrl:    server_url,
 		Realm:        realm,
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
 	}
-	err := writeConfig(ctx, req.Storage, config)
+	secret, err := b.readClientSecret(ctx, clientId, config)
+	if err != nil {
+		return logical.ErrorResponse("failed to read keycloak"), err
+	}
+	if secret != clientSecret {
+		return logical.ErrorResponse("unexpected keycloak secret state"), fmt.Errorf("the read secret from keycloak for client %s is different then the one provided. This is a very strange state", clientId)
+	}
+
+	err = writeConfig(ctx, req.Storage, config)
 	if err != nil {
 		return nil, err
 	}
 
-	// Reset the client connection
-	b.resetClient(ctx)
-
 	return nil, nil
+}
+
+func (b *backend) pathConnectionRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	config, err := readConfig(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &logical.Response{
+		Data: map[string]interface{}{
+			"client_id":     config.ClientId,
+			"client_secret": config.ClientSecret,
+			"server_url":    config.ServerUrl,
+			"realm":         config.Realm,
+		},
+	}
+	return response, nil
+
 }
 
 func readConfig(ctx context.Context, storage logical.Storage) (connectionConfig, error) {

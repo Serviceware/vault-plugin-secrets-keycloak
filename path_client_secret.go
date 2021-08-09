@@ -35,31 +35,8 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 	if err != nil {
 		return nil, err
 	}
-	goclaokClient, err := b.Client(ctx, req.Storage)
 
-	if err != nil {
-		return nil, err
-	}
-
-	token, err := goclaokClient.LoginClient(ctx, config.ClientId, config.ClientSecret, config.Realm)
-	if err != nil {
-		return nil, err
-	}
-
-	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, config.Realm, gocloak.GetClientsParams{
-		ClientID: &clientId,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(clients) != 1 {
-		return nil, fmt.Errorf("found %d clients for %s", len(clients), clientId)
-	}
-
-	client := clients[0]
-
-	creds, err := goclaokClient.GetClientSecret(ctx, token.AccessToken, config.Realm, *client.ID)
-
+	clientSecret, err := b.readClientSecret(ctx, clientId, config)
 	if err != nil {
 		return nil, err
 	}
@@ -67,9 +44,43 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 	// Generate the response
 	response := &logical.Response{
 		Data: map[string]interface{}{
-			"client_secret": *creds.Value,
+			"client_secret": clientSecret,
 		},
 	}
 
 	return response, nil
+}
+
+func (b *backend) readClientSecret(ctx context.Context, clientId string, config connectionConfig) (string, error) {
+
+	goclaokClient, err := b.GocloakFactory.NewClient(ctx, config)
+
+	if err != nil {
+		return "", err
+	}
+
+	token, err := goclaokClient.LoginClient(ctx, config.ClientId, config.ClientSecret, config.Realm)
+	if err != nil {
+		return "", err
+	}
+
+	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, config.Realm, gocloak.GetClientsParams{
+		ClientID: &clientId,
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(clients) != 1 {
+		return "", fmt.Errorf("found %d clients for %s", len(clients), clientId)
+	}
+
+	client := clients[0]
+
+	creds, err := goclaokClient.GetClientSecret(ctx, token.AccessToken, config.Realm, *client.ID)
+
+	if err != nil {
+		return "", err
+	}
+
+	return *creds.Value, nil
 }

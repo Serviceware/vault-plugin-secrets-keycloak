@@ -11,10 +11,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type MockedKeycloakClient struct {
-	mock.Mock
-}
-
 func TestBackend_ReadClientSecret(t *testing.T) {
 	var resp *logical.Response
 	var err error
@@ -46,7 +42,9 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		Value: &secretValue,
 	}, nil)
 
-	b.gocloakClient = gocloakClientMock
+	mockFactory := new(MockedGocloakFactory)
+	b.GocloakFactory = mockFactory
+	mockFactory.On("NewClient", mock.Anything, mock.Anything).Return(gocloakClientMock, nil)
 
 	writeConfig(context.Background(), config.StorageView, connectionConfig{
 		ClientId:     "vault",

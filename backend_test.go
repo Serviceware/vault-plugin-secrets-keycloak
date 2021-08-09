@@ -101,8 +101,8 @@ func TestBackend_basic(t *testing.T) {
 		LogicalBackend: b,
 		Steps: []logicaltest.TestStep{
 			testAccStepConfig(t, server_url, realm, client_id, client_secret),
-
-			testAccStepRead(t, client_id, client_secret),
+			testAccStepReadConfig(t, server_url, realm, client_id, client_secret),
+			testAccStepReadSecret(t, client_id, client_secret),
 		},
 	})
 }
@@ -127,7 +127,44 @@ func testAccStepConfig(t *testing.T, server_url, realm, client_id, client_secret
 		},
 	}
 }
-func testAccStepRead(t *testing.T, clientId string, expectedClientSecret string) logicaltest.TestStep {
+func testAccStepReadConfig(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
+	return logicaltest.TestStep{
+		Operation: logical.ReadOperation,
+		Path:      "config/connection",
+		Check: func(r *logical.Response) error {
+			var d struct {
+				Realm        string `mapstructure:"realm"`
+				ServerUrl    string `mapstructure:"server_url"`
+				ClientId     string `mapstructure:"client_id"`
+				ClientSecret string `mapstructure:"client_secret"`
+			}
+			if err := mapstructure.Decode(r.Data, &d); err != nil {
+				return err
+			}
+
+			if r != nil {
+				if r.IsError() {
+					return fmt.Errorf("error on resp: %#v", *r)
+				}
+			}
+			if d.ClientSecret != client_secret {
+				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
+			}
+			if d.ClientId != client_id {
+				return fmt.Errorf("id was not as expected: %s", d.ClientId)
+			}
+			if d.ServerUrl != server_url {
+				return fmt.Errorf("server_url was not as expected: %s", d.ServerUrl)
+			}
+			if d.Realm != realm {
+				return fmt.Errorf("secret was not as expected: %s", d.Realm)
+			}
+			return nil
+		},
+	}
+}
+
+func testAccStepReadSecret(t *testing.T, clientId string, expectedClientSecret string) logicaltest.TestStep {
 	return logicaltest.TestStep{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("client-secret/%s", clientId),

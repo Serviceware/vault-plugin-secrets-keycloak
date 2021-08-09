@@ -4,18 +4,20 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/Nerzal/gocloak/v8"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
+type GoCloakFactory interface {
+	NewClient(ctx context.Context, connConfig connectionConfig) (gocloak.GoCloak, error)
+}
+
 type backend struct {
 	*framework.Backend
 
-	gocloakClient gocloak.GoCloak
-	lock          sync.RWMutex
+	GocloakFactory GoCloakFactory
 }
 
 var _ logical.Factory = Factory
@@ -55,6 +57,7 @@ func newBackend() (*backend, error) {
 			b.paths(),
 		),
 	}
+	b.GocloakFactory = &DefaultGoCloakFactory{}
 
 	return b, nil
 }
@@ -66,38 +69,14 @@ func (b *backend) paths() []*framework.Path {
 	}
 }
 
-func (b *backend) Client(ctx context.Context, s logical.Storage) (gocloak.GoCloak, error) {
-
-	b.lock.RLock()
-
-	// If we already have a client, return it
-	if b.gocloakClient != nil {
-		b.lock.RUnlock()
-		return b.gocloakClient, nil
-	}
-
-	b.lock.RUnlock()
-	// Otherwise, attempt to make connection
-	connConfig, err := readConfig(ctx, s)
-	if err != nil {
-		return nil, err
-	}
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	// If the client was created during the lock switch, return it
-	if b.gocloakClient != nil {
-		return b.gocloakClient, nil
-	}
-
-	b.gocloakClient = gocloak.NewClient(connConfig.ServerUrl)
-
-	return b.gocloakClient, nil
+type DefaultGoCloakFactory struct {
 }
-func (b *backend) resetClient(_ context.Context) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
 
-	b.gocloakClient = nil
+func (b *DefaultGoCloakFactory) NewClient(ctx context.Context, connConfig connectionConfig) (gocloak.GoCloak, error) {
+
+	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
+
+	return gocloakClient, nil
 }
 
 const keycloakHelp = `
