@@ -37,6 +37,7 @@ func pathConfigConnection(b *backend) *framework.Path {
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.UpdateOperation: b.pathConnectionUpdate,
 			logical.ReadOperation:   b.pathConnectionRead,
+			logical.DeleteOperation: b.pathConnectionDelete,
 		},
 	}
 }
@@ -82,6 +83,14 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 
 	return nil, nil
 }
+func (b *backend) pathConnectionDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+
+	err := deleteConfig(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
 
 func (b *backend) pathConnectionRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	config, err := readConfig(ctx, req.Storage)
@@ -123,6 +132,14 @@ func writeConfig(ctx context.Context, storage logical.Storage, config connection
 		return err
 	}
 	if err := storage.Put(ctx, entry); err != nil {
+		return err
+	}
+	return nil
+}
+
+func deleteConfig(ctx context.Context, storage logical.Storage) error {
+
+	if err := storage.Delete(ctx, storageKey); err != nil {
 		return err
 	}
 	return nil

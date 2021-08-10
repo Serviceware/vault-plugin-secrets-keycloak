@@ -103,6 +103,7 @@ func TestBackend_basic(t *testing.T) {
 			testAccStepConfig(t, server_url, realm, client_id, client_secret),
 			testAccStepReadConfig(t, server_url, realm, client_id, client_secret),
 			testAccStepReadSecret(t, client_id, client_secret),
+			testAccStepConfigDelete(t),
 		},
 	})
 }
@@ -125,6 +126,13 @@ func testAccStepConfig(t *testing.T, server_url, realm, client_id, client_secret
 			"client_id":     client_id,
 			"client_secret": client_secret,
 		},
+	}
+}
+func testAccStepConfigDelete(t *testing.T) logicaltest.TestStep {
+
+	return logicaltest.TestStep{
+		Operation: logical.DeleteOperation,
+		Path:      "config/connection",
 	}
 }
 func testAccStepReadConfig(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
