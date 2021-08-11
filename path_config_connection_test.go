@@ -58,7 +58,7 @@ func TestBackend_UpdateConfigConnection(t *testing.T) {
 	var err error
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
-	b, err := newBackend()
+	b, err := newBackend(config)
 	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestBackend_DeleteConfigConnection(t *testing.T) {
 	var err error
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
-	b, err := newBackend()
+	b, err := newBackend(config)
 	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestBackend_ReadConfigConnection(t *testing.T) {
 	var err error
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
-	b, err := newBackend()
+	b, err := newBackend(config)
 	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestBackend_ConfigConnectionFailsIfNotConnectable(t *testing.T) {
 	var err error
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
-	b, err := newBackend()
+	b, err := newBackend(config)
 	b.GocloakFactory = failingMockedGocloakFactory(t)
 	if err != nil {
 		t.Fatal(err)

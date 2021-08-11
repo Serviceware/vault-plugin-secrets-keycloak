@@ -33,12 +33,12 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 	config, err := readConfig(ctx, req.Storage)
 
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse("failed to read config"), err
 	}
 
 	clientSecret, err := b.readClientSecret(ctx, clientId, config)
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse("could not retrieve client secret"), err
 	}
 
 	// Generate the response

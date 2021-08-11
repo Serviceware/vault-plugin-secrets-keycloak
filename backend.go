@@ -8,6 +8,8 @@ import (
 	"github.com/Nerzal/gocloak/v8"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+
+	log "github.com/hashicorp/go-hclog"
 )
 
 type GoCloakFactory interface {
@@ -18,13 +20,15 @@ type backend struct {
 	*framework.Backend
 
 	GocloakFactory GoCloakFactory
+
+	logger log.Logger
 }
 
 var _ logical.Factory = Factory
 
 // Factory configures and returns Keycloak backends
 func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
-	b, err := newBackend()
+	b, err := newBackend(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +44,7 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 	return b, nil
 }
 
-func newBackend() (*backend, error) {
+func newBackend(conf *logical.BackendConfig) (*backend, error) {
 
 	b := &backend{}
 
@@ -58,7 +62,7 @@ func newBackend() (*backend, error) {
 		),
 	}
 	b.GocloakFactory = &DefaultGoCloakFactory{}
-
+	b.logger = conf.Logger
 	return b, nil
 }
 

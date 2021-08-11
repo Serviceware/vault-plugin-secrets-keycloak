@@ -2,7 +2,6 @@ package keycloak
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -70,10 +69,12 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 	}
 	secret, err := b.readClientSecret(ctx, clientId, config)
 	if err != nil {
+		b.logger.Info("failed to read keycloak", "error", err)
 		return logical.ErrorResponse("failed to read keycloak"), err
 	}
 	if secret != clientSecret {
-		return logical.ErrorResponse("unexpected keycloak secret state"), fmt.Errorf("the read secret from keycloak for client %s is different then the one provided. This is a very strange state", clientId)
+		b.logger.Info("the read secret from keycloak for client is different then the one provided. This is a very strange state", clientId)
+		return logical.ErrorResponse("unexpected keycloak secret state"), nil
 	}
 
 	err = writeConfig(ctx, req.Storage, config)
