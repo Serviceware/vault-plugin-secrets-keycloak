@@ -14,6 +14,11 @@ vault write keycloak/config/connection \
     client_secret="sec3t"
 ```
 
+You can provsion the keycloak realm with our terraform module:
+
+https://github.com/Serviceware/terraform-vaultkeycloak-keycloak-client
+
+
 ### Usage
 
 ```
