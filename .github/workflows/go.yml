@@ -18,8 +18,12 @@ jobs:
           go-version: 1.16
       - name: "Check format"
         run: "test -z $(gofmt -l .)"
-      - name: Build
-        run: go build ./...
 
       - name: Test
         run: go test ./...
+      - name: Build
+        run: make build
+      - uses: actions/upload-artifact@v2
+        with:
+          name: vault-plugin-secrets-keycloak
+          path: vault/plugins/vault-plugin-secrets-keycloak
