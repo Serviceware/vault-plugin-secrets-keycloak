@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Nerzal/gocloak/v8"
+	"github.com/Nerzal/gocloak/v11"
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/mocks"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"

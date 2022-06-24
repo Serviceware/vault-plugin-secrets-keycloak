@@ -3,7 +3,7 @@ package keycloak
 import (
 	"context"
 
-	"github.com/Nerzal/gocloak/v8"
+	"github.com/Nerzal/gocloak/v11"
 	"github.com/stretchr/testify/mock"
 )
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Nerzal/gocloak/v8"
+	"github.com/Nerzal/gocloak/v11"
 	"github.com/docker/go-connections/nat"
 	logicaltest "github.com/hashicorp/vault/helper/testhelpers/logical"
 	"github.com/hashicorp/vault/sdk/logical"
