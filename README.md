@@ -33,8 +33,8 @@ or with Terraform
 
 ```
 resource "vault_mount" "keycloak-client-secrets" {
-  path        = "keycloak-client-secrets"
   type        = "keycloak-client-secrets"
+  path        = "keycloak-client-secrets"
 }
 ```
 
@@ -74,12 +74,12 @@ or by using our [vaultkeycloak](https://registry.terraform.io/providers/Servicew
 
 ```
 resource "vaultkeycloak_secret_backend" "keycloak-client-secrets-config" {
+  path = "keycloak-client-secrets"
+  
   server_url    = "https://auth.example.org"
   realm         = "master"
   client_id     = "vault"
   client_secret = "secr3t"
-
-  path = vault_mount.keycloak-client-secrets[each.key].path
 }
 ```
 
