@@ -59,9 +59,9 @@ module "keycloak_vault_config" {
 
 The plugin takes the credentials from the Keycloak provider. 
 
-### Config connection
+### Configure connection
 
-Now, you can register a connection to Keycloak
+Now, you can register a connection to Keycloak with
 
 ```
 vault write keycloak-client-secrets/config/connection \
