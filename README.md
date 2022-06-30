@@ -1,5 +1,7 @@
 # Keycloak Secrets via Vault
 
+The purpose of this plugin is to provide Keycloak client secrets from Vault. 
+
 ## Setup
 
 Please read [Vault Plugin](https://www.vaultproject.io/docs/plugins) documentation for how to enable and handle plugins in Vault.
