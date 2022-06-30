@@ -38,9 +38,10 @@ resource "vault_mount" "keycloak-client-secrets" {
 }
 ```
 
-### Register client
+### Create client
 
-Use our [Terraform plugin](https://registry.terraform.io/modules/Serviceware/keycloak-client/vaultkeycloak/0.1.2) to create a client for Vault in Keycloak:
+Create a client in Keycloak which should be used by vault to access the client secrets. You can use our 
+[Terraform plugin](https://registry.terraform.io/modules/Serviceware/keycloak-client/vaultkeycloak/0.1.2) to this:
 
 ```
 provider "keycloak" {
