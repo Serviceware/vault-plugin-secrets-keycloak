@@ -26,7 +26,7 @@ Now, the plugin can be used in Vault.
 Next, you have to mount a _keycloak-client-secrets_ backend. Do this either by command line
 
 ```
-vault mount 
+vault secrets enable --path=keycloak-client-secrets keycloak-client-secrets
 ```
 
 or with Terraform
