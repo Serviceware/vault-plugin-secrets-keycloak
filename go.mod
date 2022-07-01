@@ -12,9 +12,8 @@ require (
 	github.com/hashicorp/vault/api v1.1.1
 	github.com/hashicorp/vault/sdk v0.2.1
 	github.com/mitchellh/mapstructure v1.3.3
-	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.0.3 // indirect
 	github.com/stretchr/testify v1.7.1
-	github.com/testcontainers/testcontainers-go v0.11.1
+	github.com/testcontainers/testcontainers-go v0.13.0
 	gopkg.in/ini.v1 v1.51.0 // indirect
 )
