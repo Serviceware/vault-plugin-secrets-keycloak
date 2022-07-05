@@ -96,6 +96,14 @@ Assuming, you have a client _my-client_ in Keycloak you can finally read the cli
 vault read keycloak-client-secrets/client-secret/my-client
 ```
 
+The output looks like this:
+
+```
+Key              Value
+---              -----
+client_secret    some-very-secret-value
+```
+
 ## Test Setup
 
 First run `mockery`
