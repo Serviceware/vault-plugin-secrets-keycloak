@@ -50,6 +50,7 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		ClientId:     "vault",
 		ClientSecret: "secret123",
 		Realm:        "somerealm",
+		ServerUrl:    "http://example.com",
 	})
 
 	if err != nil {
@@ -71,6 +72,8 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 
 	expectedResponse := map[string]interface{}{
 		"client_secret": "mysecret123",
+		"client_id":     "myclient",
+		"issuer_url":    "http://example.com/auth/realms/somerealm",
 	}
 
 	if !reflect.DeepEqual(resp.Data, expectedResponse) {

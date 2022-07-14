@@ -1,7 +1,6 @@
 # Keycloak Secrets via Vault
 
 The purpose of this plugin is to provide Keycloak client secrets from Vault. 
-
 ## Setup
 
 Please read [Vault Plugin](https://www.vaultproject.io/docs/plugins) documentation for how to enable and handle plugins in Vault.
@@ -62,7 +61,8 @@ module "keycloak_vault_config" {
 The plugin takes the credentials from the Keycloak provider. 
 
 ### Configure connection
-
+> **Warning**
+> Currently this plugin supports only Keycloak below version 17 as the `/auth` part is implictly appended to the server url
 Now, you can register a connection to Keycloak with
 
 ```
@@ -102,6 +102,8 @@ The output looks like this:
 Key              Value
 ---              -----
 client_secret    some-very-secret-value
+client_id        my-client
+issuer_url       https://auth.example.org/auth/realms/master
 ```
 
 ## Test Setup

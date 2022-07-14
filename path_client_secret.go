@@ -42,9 +42,12 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 	}
 
 	// Generate the response
+	issuerUrl := config.ServerUrl + "/auth/realms/" + config.Realm
 	response := &logical.Response{
 		Data: map[string]interface{}{
 			"client_secret": clientSecret,
+			"client_id":     clientId,
+			"issuer_url":    issuerUrl,
 		},
 	}
 
