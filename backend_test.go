@@ -197,17 +197,20 @@ func testAccStepReadSecret(t *testing.T, clientId string, expectedClientSecret s
 	}
 }
 
-func prepareKeycloakTestContainer(t *testing.T, image string, env map[string]string, cmd []string) (func(), string, string) {
+func prepareKeycloakTestContainer(t *testing.T, image string, env map[string]string, cmd []string, waitPath string) (func(), string, string) {
 
 	t.Helper()
 
+	if waitPath == "" {
+		waitPath = "/"
+	}
 	realm := "master"
 
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
 		Image:        image,
 		ExposedPorts: []string{"8080/tcp"},
-		WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
+		WaitingFor:   wait.ForHTTP(waitPath).WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
 		Env:          env,
 		Cmd:          cmd,
 	}
@@ -242,6 +245,7 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 		image    string
 		env      map[string]string
 		cmd      []string
+		waitPath string
 	}
 	tests := []struct {
 		name    string
@@ -304,7 +308,8 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 					"KEYCLOAK_ADMIN_PASSWORD": "admin",
 					"KC_HTTP_RELATIVE_PATH":   "some/thing/other",
 				},
-				cmd: []string{"start-dev"},
+				cmd:      []string{"start-dev"},
+				waitPath: "/some/thing/other",
 			},
 		},
 		{
@@ -326,7 +331,7 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			cleanup, server_url, realm := prepareKeycloakTestContainer(t, tt.args.image, tt.args.env, tt.args.cmd)
+			cleanup, server_url, realm := prepareKeycloakTestContainer(t, tt.args.image, tt.args.env, tt.args.cmd, tt.args.waitPath)
 			defer cleanup()
 
 			b := &DefaultGoCloakFactory{}
