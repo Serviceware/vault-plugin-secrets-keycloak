@@ -80,6 +80,18 @@ func (b *DefaultGoCloakFactory) NewClient(ctx context.Context, connConfig connec
 
 	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
 
+	if connConfig.BasePath != "" {
+		basePrefix := strings.TrimPrefix(connConfig.BasePath, "/")
+		if strings.HasPrefix(connConfig.BasePath, "/") {
+			return nil, fmt.Errorf("base Path has invalid form (%s)", connConfig.BasePath)
+		}
+
+		adminRealmsBasePath := fmt.Sprintf("%sadmin/realms", basePrefix)
+		realmsBasePath := fmt.Sprintf("%srealms", basePrefix)
+
+		gocloakClient = gocloak.NewClient(connConfig.ServerUrl, gocloak.SetAuthAdminRealms(adminRealmsBasePath), gocloak.SetAuthRealms(realmsBasePath))
+	}
+
 	return gocloakClient, nil
 }
 

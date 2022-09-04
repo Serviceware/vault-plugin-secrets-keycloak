@@ -31,6 +31,10 @@ func pathConfigConnection(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: `The secret that is used to get an access token`,
 			},
+			"base_path": {
+				Type:        framework.TypeString,
+				Description: `The base path if that is used e.g. "/" for new quarkus distro, or "/auth" for pre quarkus versions. If left empty ("") "/auth" is used. `,
+			},
 		},
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
@@ -60,12 +64,14 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 	if clientSecret == "" {
 		return logical.ErrorResponse("missing client_secret"), nil
 	}
+	basePath := data.Get("base_path").(string)
 
 	config := connectionConfig{
 		ServerUrl:    server_url,
 		Realm:        realm,
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
+		BasePath:     basePath,
 	}
 	secret, err := b.readClientSecret(ctx, clientId, config)
 	if err != nil {
@@ -99,13 +105,19 @@ func (b *backend) pathConnectionRead(ctx context.Context, req *logical.Request, 
 		return nil, err
 	}
 
+	responseData := map[string]interface{}{
+		"client_id":     config.ClientId,
+		"client_secret": config.ClientSecret,
+		"server_url":    config.ServerUrl,
+		"realm":         config.Realm,
+	}
+
+	if config.BasePath != "" {
+		responseData["base_path"] = config.BasePath
+	}
+
 	response := &logical.Response{
-		Data: map[string]interface{}{
-			"client_id":     config.ClientId,
-			"client_secret": config.ClientSecret,
-			"server_url":    config.ServerUrl,
-			"realm":         config.Realm,
-		},
+		Data: responseData,
 	}
 	return response, nil
 
@@ -152,4 +164,5 @@ type connectionConfig struct {
 	Realm        string `json:"realm"`
 	ClientId     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
+	BasePath     string `json:"base_path"`
 }

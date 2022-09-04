@@ -103,6 +103,58 @@ func TestBackend_UpdateConfigConnection(t *testing.T) {
 		t.Fatalf("Expected: %#v\nActual: %#v", expectedConfig, actualConfig)
 	}
 }
+func TestBackend_UpdateConfigWithBasePathConnection(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	configData := map[string]interface{}{
+		"server_url":    "http://auth.example.com",
+		"realm":         "master",
+		"client_id":     "vault",
+		"client_secret": "secret123",
+		"base_path":     "/",
+	}
+	configReq := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "config/connection",
+		Storage:   config.StorageView,
+		Data:      configData,
+	}
+	resp, err = b.HandleRequest(context.Background(), configReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
+	}
+	if resp != nil {
+		t.Fatal("expected a nil response")
+	}
+
+	actualConfig, err := readConfig(context.Background(), config.StorageView)
+	if err != nil {
+		t.Fatalf("unable to read configuration: %v", err)
+	}
+
+	expectedConfig := connectionConfig{
+		ServerUrl:    "http://auth.example.com",
+		Realm:        "master",
+		ClientId:     "vault",
+		ClientSecret: "secret123",
+		BasePath:     "/",
+	}
+
+	if !reflect.DeepEqual(actualConfig, expectedConfig) {
+		t.Fatalf("Expected: %#v\nActual: %#v", expectedConfig, actualConfig)
+	}
+}
 func TestBackend_DeleteConfigConnection(t *testing.T) {
 	var resp *logical.Response
 	var err error
@@ -202,6 +254,58 @@ func TestBackend_ReadConfigConnection(t *testing.T) {
 		"realm":         "master",
 		"client_id":     "vault",
 		"client_secret": "secret123",
+	}
+
+	if !reflect.DeepEqual(resp.Data, expectedConfigData) {
+		t.Fatalf("Expected: %#v\nActual: %#v", expectedConfigData, resp.Data)
+	}
+}
+func TestBackend_ReadConfigConnectionWithBasePath(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	connectionConfig := connectionConfig{
+		ServerUrl:    "http://auth.example.com",
+		Realm:        "master",
+		ClientId:     "vault",
+		ClientSecret: "secret123",
+		BasePath:     "/",
+	}
+
+	if err = writeConfig(context.Background(), config.StorageView, connectionConfig); err != nil {
+		t.Fatal(err)
+	}
+
+	configReq := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "config/connection",
+		Storage:   config.StorageView,
+	}
+
+	resp, err = b.HandleRequest(context.Background(), configReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
+	}
+	if resp == nil {
+		t.Fatal("expected non nil response")
+	}
+
+	expectedConfigData := map[string]interface{}{
+		"server_url":    "http://auth.example.com",
+		"realm":         "master",
+		"client_id":     "vault",
+		"client_secret": "secret123",
+		"base_path":     "/",
 	}
 
 	if !reflect.DeepEqual(resp.Data, expectedConfigData) {

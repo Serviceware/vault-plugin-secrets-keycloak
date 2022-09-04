@@ -17,7 +17,7 @@ import (
 
 // inspired by https://github.com/hashicorp/vault/blob/main/builtin/logical/rabbitmq/backend_test.go
 
-func prepareKeycloakTestContainer(t *testing.T) (func(), string, string, string, string) {
+func prepareKeycloakTestContainerWithVaultClient(t *testing.T) (func(), string, string, string, string) {
 
 	t.Helper()
 	keycloakUsername := "admin"
@@ -93,7 +93,7 @@ func prepareKeycloakTestContainer(t *testing.T) (func(), string, string, string,
 func TestBackend_basic(t *testing.T) {
 	b, _ := Factory(context.Background(), logical.TestBackendConfig())
 
-	cleanup, server_url, realm, client_id, client_secret := prepareKeycloakTestContainer(t)
+	cleanup, server_url, realm, client_id, client_secret := prepareKeycloakTestContainerWithVaultClient(t)
 	defer cleanup()
 
 	logicaltest.Test(t, logicaltest.TestCase{
@@ -194,5 +194,162 @@ func testAccStepReadSecret(t *testing.T, clientId string, expectedClientSecret s
 			}
 			return nil
 		},
+	}
+}
+
+func prepareKeycloakTestContainer(t *testing.T, image string, env map[string]string, cmd []string) (func(), string, string) {
+
+	t.Helper()
+
+	realm := "master"
+
+	ctx := context.Background()
+	req := testcontainers.ContainerRequest{
+		Image:        image,
+		ExposedPorts: []string{"8080/tcp"},
+		WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
+		Env:          env,
+		Cmd:          cmd,
+	}
+
+	keycloakC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ip, err := keycloakC.Host(ctx)
+	if err != nil {
+		t.Error(err)
+	}
+	port, err := keycloakC.MappedPort(ctx, "8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverUrl := fmt.Sprintf("http://%s:%s", ip, port.Port())
+
+	//serverUrl := "http://localhost:8080"
+	return func() {
+		defer keycloakC.Terminate(ctx)
+	}, serverUrl, realm
+}
+
+func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
+	type args struct {
+		ctx      context.Context
+		basePath string
+		image    string
+		env      map[string]string
+		cmd      []string
+	}
+	tests := []struct {
+		name    string
+		b       *DefaultGoCloakFactory
+		args    args
+		want    gocloak.GoCloak
+		wantErr bool
+	}{
+		{
+			name: "Test with classic keycloak and empty base path",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx: context.Background(),
+
+				image: "quay.io/keycloak/keycloak:15.1.1",
+				env: map[string]string{
+					"KEYCLOAK_USER":     "admin",
+					"KEYCLOAK_PASSWORD": "admin",
+					"DB_VENDOR":         "h2",
+				},
+			},
+		},
+		{
+			name: "Test with classic keycloak and explicit auth/",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx:      context.Background(),
+				basePath: "auth/",
+				image:    "quay.io/keycloak/keycloak:15.1.1",
+				env: map[string]string{
+					"KEYCLOAK_USER":     "admin",
+					"KEYCLOAK_PASSWORD": "admin",
+					"DB_VENDOR":         "h2",
+				},
+			},
+		},
+		{
+			name: "Test with quarkus keycloak",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx:      context.Background(),
+				basePath: "/",
+				image:    "quay.io/keycloak/keycloak:19.0.1",
+				env: map[string]string{
+					"KEYCLOAK_ADMIN":          "admin",
+					"KEYCLOAK_ADMIN_PASSWORD": "admin",
+				},
+				cmd: []string{"start-dev"},
+			},
+		},
+		{
+			name: "Works with some other base path",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx:      context.Background(),
+				basePath: "some/thing/other/",
+				image:    "quay.io/keycloak/keycloak:19.0.1",
+				env: map[string]string{
+					"KEYCLOAK_ADMIN":          "admin",
+					"KEYCLOAK_ADMIN_PASSWORD": "admin",
+					"KC_HTTP_RELATIVE_PATH":   "some/thing/other",
+				},
+				cmd: []string{"start-dev"},
+			},
+		},
+		{
+			name: "Raisese error if starts with double slash",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx:      context.Background(),
+				basePath: "//",
+				image:    "quay.io/keycloak/keycloak:19.0.1",
+				env: map[string]string{
+					"KEYCLOAK_ADMIN":          "admin",
+					"KEYCLOAK_ADMIN_PASSWORD": "admin",
+				},
+				cmd: []string{"start-dev"},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			cleanup, server_url, realm := prepareKeycloakTestContainer(t, tt.args.image, tt.args.env, tt.args.cmd)
+			defer cleanup()
+
+			b := &DefaultGoCloakFactory{}
+
+			connConfig := connectionConfig{
+				ServerUrl:    server_url,
+				Realm:        realm,
+				ClientId:     "...",
+				ClientSecret: "...",
+				BasePath:     tt.args.basePath,
+			}
+			got, err := b.NewClient(tt.args.ctx, connConfig)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DefaultGoCloakFactory.NewClient() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			_, err = got.Login(tt.args.ctx, "admin-cli", "", "master", "admin", "admin")
+
+			if err != nil {
+				t.Errorf("Login failed error = %v", err)
+
+			}
+
+		})
 	}
 }
