@@ -254,34 +254,7 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 		want    gocloak.GoCloak
 		wantErr bool
 	}{
-		{
-			name: "Test with classic keycloak and empty base path",
-			b:    &DefaultGoCloakFactory{},
-			args: args{
-				ctx: context.Background(),
 
-				image: "quay.io/keycloak/keycloak:15.1.1",
-				env: map[string]string{
-					"KEYCLOAK_USER":     "admin",
-					"KEYCLOAK_PASSWORD": "admin",
-					"DB_VENDOR":         "h2",
-				},
-			},
-		},
-		{
-			name: "Test with classic keycloak and explicit auth/",
-			b:    &DefaultGoCloakFactory{},
-			args: args{
-				ctx:      context.Background(),
-				basePath: "auth/",
-				image:    "quay.io/keycloak/keycloak:15.1.1",
-				env: map[string]string{
-					"KEYCLOAK_USER":     "admin",
-					"KEYCLOAK_PASSWORD": "admin",
-					"DB_VENDOR":         "h2",
-				},
-			},
-		},
 		{
 			name: "Test with quarkus keycloak",
 			b:    &DefaultGoCloakFactory{},
@@ -327,6 +300,34 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Test with classic keycloak and empty base path",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx: context.Background(),
+
+				image: "quay.io/keycloak/keycloak:15.1.1",
+				env: map[string]string{
+					"KEYCLOAK_USER":     "admin",
+					"KEYCLOAK_PASSWORD": "admin",
+					"DB_VENDOR":         "h2",
+				},
+			},
+		},
+		{
+			name: "Test with classic keycloak and explicit auth/",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx:      context.Background(),
+				basePath: "auth/",
+				image:    "quay.io/keycloak/keycloak:15.1.1",
+				env: map[string]string{
+					"KEYCLOAK_USER":     "admin",
+					"KEYCLOAK_PASSWORD": "admin",
+					"DB_VENDOR":         "h2",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -348,11 +349,14 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 				t.Errorf("DefaultGoCloakFactory.NewClient() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			if err != nil && tt.wantErr {
+				return
+			}
 			_, err = got.Login(tt.args.ctx, "admin-cli", "", "master", "admin", "admin")
 
 			if err != nil {
 				t.Errorf("Login failed error = %v", err)
-
+				return
 			}
 
 		})
