@@ -82,7 +82,7 @@ func (b *DefaultGoCloakFactory) NewClient(ctx context.Context, connConfig connec
 
 	if connConfig.BasePath != "" {
 		basePrefix := strings.TrimPrefix(connConfig.BasePath, "/")
-		if strings.HasPrefix(connConfig.BasePath, "/") {
+		if strings.HasPrefix(basePrefix, "/") {
 			return nil, fmt.Errorf("base Path has invalid form (%s)", connConfig.BasePath)
 		}
 
