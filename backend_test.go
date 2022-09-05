@@ -269,22 +269,7 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 				cmd: []string{"start-dev"},
 			},
 		},
-		{
-			name: "Works with some other base path",
-			b:    &DefaultGoCloakFactory{},
-			args: args{
-				ctx:      context.Background(),
-				basePath: "some/thing/other/",
-				image:    "quay.io/keycloak/keycloak:19.0.1",
-				env: map[string]string{
-					"KEYCLOAK_ADMIN":          "admin",
-					"KEYCLOAK_ADMIN_PASSWORD": "admin",
-					"KC_HTTP_RELATIVE_PATH":   "some/thing/other",
-				},
-				cmd:      []string{"start-dev"},
-				waitPath: "/some/thing/other",
-			},
-		},
+
 		{
 			name: "Raisese error if starts with double slash",
 			b:    &DefaultGoCloakFactory{},
@@ -326,6 +311,23 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 					"KEYCLOAK_PASSWORD": "admin",
 					"DB_VENDOR":         "h2",
 				},
+			},
+		},
+
+		{
+			name: "Works with some other base path",
+			b:    &DefaultGoCloakFactory{},
+			args: args{
+				ctx:      context.Background(),
+				basePath: "some/thing/other/",
+				image:    "quay.io/keycloak/keycloak:19.0.1",
+				env: map[string]string{
+					"KEYCLOAK_ADMIN":          "admin",
+					"KEYCLOAK_ADMIN_PASSWORD": "admin",
+					"KC_HTTP_RELATIVE_PATH":   "some/thing/other",
+				},
+				cmd:      []string{"start-dev"},
+				waitPath: "/some/thing/other",
 			},
 		},
 	}
