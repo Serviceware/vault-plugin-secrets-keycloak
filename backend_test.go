@@ -360,6 +360,7 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 				t.Errorf("Login failed error = %v", err)
 				return
 			}
+			t.Logf("Test passed: %s", tt.name)
 
 		})
 	}
