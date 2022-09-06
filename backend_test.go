@@ -354,7 +354,7 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 			if err != nil && tt.wantErr {
 				return
 			}
-			_, err = got.Login(tt.args.ctx, "admin-cli", "", "master", "admin", "admin")
+			_, err = got.LoginAdmin(tt.args.ctx, "admin", "admin", "master")
 
 			if err != nil {
 				t.Errorf("Login failed error = %v", err)
