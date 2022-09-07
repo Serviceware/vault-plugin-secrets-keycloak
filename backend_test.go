@@ -354,7 +354,13 @@ func TestDefaultGoCloakFactory_NewClient(t *testing.T) {
 			if err != nil && tt.wantErr {
 				return
 			}
-			_, err = got.LoginAdmin(tt.args.ctx, "admin", "admin", "master")
+			_, err = got.GetToken(tt.args.ctx, "master", gocloak.TokenOptions{
+				ClientID:     gocloak.StringP("admin-cli"),
+				ClientSecret: nil,
+				Username:     gocloak.StringP("admin"),
+				Password:     gocloak.StringP("admin"),
+				GrantType:    gocloak.StringP("password"),
+			})
 
 			if err != nil {
 				t.Errorf("Login failed error = %v", err)
