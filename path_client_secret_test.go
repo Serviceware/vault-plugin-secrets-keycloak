@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Nerzal/gocloak/v11"
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/mocks"
+	"github.com/Nerzal/gocloak/v13"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 )
@@ -22,7 +22,7 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &mocks.GoCloak{}
+	gocloakClientMock := &testutil.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
 		AccessToken: "access123",
@@ -42,11 +42,9 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		Value: &secretValue,
 	}, nil)
 
-	mockFactory := new(MockedGocloakFactory)
-	b.GocloakFactory = mockFactory
-	mockFactory.On("NewClient", mock.Anything, mock.Anything).Return(gocloakClientMock, nil)
+	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
-	writeConfig(context.Background(), config.StorageView, connectionConfig{
+	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
 		ClientSecret: "secret123",
 		Realm:        "somerealm",
@@ -91,7 +89,7 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &mocks.GoCloak{}
+	gocloakClientMock := &testutil.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
 		AccessToken: "access123",
@@ -103,11 +101,9 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 		ClientID: &requestedClientId,
 	}).Return([]*gocloak.Client{}, nil)
 
-	mockFactory := new(MockedGocloakFactory)
-	b.GocloakFactory = mockFactory
-	mockFactory.On("NewClient", mock.Anything, mock.Anything).Return(gocloakClientMock, nil)
+	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
-	writeConfig(context.Background(), config.StorageView, connectionConfig{
+	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
 		ClientSecret: "secret123",
 		Realm:        "somerealm",

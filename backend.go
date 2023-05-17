@@ -5,21 +5,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Nerzal/gocloak/v11"
+	"github.com/Nerzal/gocloak/v13"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 
 	log "github.com/hashicorp/go-hclog"
 )
 
-type GoCloakFactory interface {
-	NewClient(ctx context.Context, connConfig connectionConfig) (gocloak.GoCloak, error)
-}
-
 type backend struct {
 	*framework.Backend
 
-	GocloakFactory GoCloakFactory
+	KeycloakServiceFactory keycloakservice.KeycloakServiceFactory
 
 	logger log.Logger
 }
@@ -61,7 +58,7 @@ func newBackend(conf *logical.BackendConfig) (*backend, error) {
 			b.paths(),
 		),
 	}
-	b.GocloakFactory = &DefaultGoCloakFactory{}
+	b.KeycloakServiceFactory = &GoCloakFactory{}
 	b.logger = conf.Logger
 	return b, nil
 }
@@ -73,10 +70,10 @@ func (b *backend) paths() []*framework.Path {
 	}
 }
 
-type DefaultGoCloakFactory struct {
+type GoCloakFactory struct {
 }
 
-func (b *DefaultGoCloakFactory) NewClient(ctx context.Context, connConfig connectionConfig) (gocloak.GoCloak, error) {
+func (b *GoCloakFactory) NewClient(ctx context.Context, connConfig keycloakservice.ConnectionConfig) (keycloakservice.KeycloakService, error) {
 
 	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
 

@@ -46,7 +46,7 @@ Create a client in Keycloak which should be used by vault to access the client s
 
 ```
 provider "keycloak" {
-  url       = "https://auth.example.org"
+  url       = "https://auth.example.org/auth"
   client_id = "admin-cli"
 }
 
@@ -62,13 +62,13 @@ The plugin takes the credentials from the Keycloak provider.
 
 ### Configure connection
 > **Warning**
-> Currently this plugin supports only Keycloak below version 17 as the `/auth` part is implicitly appended to the server url
+> Currently this plugin supports only Keycloak below version 17
 
 Now, you can register a connection to Keycloak with:
 
 ```
 vault write keycloak-client-secrets/config/connection \
-    server_url="https://auth.example.org" \
+    server_url="https://auth.example.org/auth" \
     realm="master" \
     client_id="vault" \
     client_secret="secr3t"
@@ -80,7 +80,7 @@ or by using our [vaultkeycloak](https://registry.terraform.io/providers/Servicew
 resource "vaultkeycloak_secret_backend" "keycloak-client-secrets-config" {
   path = "keycloak-client-secrets"
   
-  server_url    = "https://auth.example.org"
+  server_url    = "https://auth.example.org/auth"
   realm         = "master"
   client_id     = "vault"
   client_secret = "secr3t"
@@ -124,7 +124,7 @@ make build && make start
 ```
 make enable
 vault write keycloak/config/connection \
-    server_url="http://localhost:8080" \
+    server_url="http://localhost:8080/auth" \
     realm="master" \
     client_id="vault" \
     client_secret="sec3t"

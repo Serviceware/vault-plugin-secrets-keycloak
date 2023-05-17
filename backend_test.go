@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Nerzal/gocloak/v11"
+	"github.com/Nerzal/gocloak/v13"
 	"github.com/docker/go-connections/nat"
 	logicaltest "github.com/hashicorp/vault/helper/testhelpers/logical"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -28,12 +28,13 @@ func prepareKeycloakTestContainer(t *testing.T) (func(), string, string, string,
 
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
-		Image:        "jboss/keycloak:15.1.1",
+		Image:        "jboss/keycloak:16.1.1",
 		ExposedPorts: []string{"8080/tcp"},
 		WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
 		Env: map[string]string{
 			"KEYCLOAK_USER":     keycloakUsername,
 			"KEYCLOAK_PASSWORD": keycloakPassword,
+			"DB_VENDOR":         "H2",
 		},
 	}
 
@@ -52,7 +53,7 @@ func prepareKeycloakTestContainer(t *testing.T) (func(), string, string, string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverUrl := fmt.Sprintf("http://%s:%s", ip, port.Port())
+	serverUrl := fmt.Sprintf("http://%s:%s/auth", ip, port.Port())
 	keycloakCLient := gocloak.NewClient(serverUrl)
 
 	loginToken, err := keycloakCLient.Login(ctx, "admin-cli", "", "master", keycloakUsername, keycloakPassword)
@@ -86,7 +87,7 @@ func prepareKeycloakTestContainer(t *testing.T) (func(), string, string, string,
 
 	//serverUrl := "http://localhost:8080"
 	return func() {
-		defer keycloakC.Terminate(ctx)
+		keycloakC.Terminate(ctx)
 	}, serverUrl, realm, client_id, client_secret
 }
 

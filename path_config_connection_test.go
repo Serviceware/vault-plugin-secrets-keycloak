@@ -6,17 +6,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Nerzal/gocloak/v11"
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/mocks"
+	"github.com/Nerzal/gocloak/v13"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 )
 
-func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) *MockedGocloakFactory {
+func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) *testutil.MockedKeycloakServiceFactory {
 	t.Helper()
 
-	gocloakClientMock := &mocks.GoCloak{}
-
+	gocloakClientMock := &testutil.MockedKeycloakService{}
 	gocloakClientMock.On("LoginClient", mock.Anything, client_id, client_secret, realm).Return(&gocloak.JWT{
 		AccessToken: "access123",
 	}, nil)
@@ -34,24 +33,17 @@ func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) 
 		Value: &client_secret,
 	}, nil)
 
-	mockFactory := new(MockedGocloakFactory)
-
-	mockFactory.On("NewClient", mock.Anything, mock.Anything).Return(gocloakClientMock, nil)
-
-	return mockFactory
+	return testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
 }
-func failingMockedGocloakFactory(t *testing.T) *MockedGocloakFactory {
+func failingMockedGocloakFactory(t *testing.T) *testutil.MockedKeycloakServiceFactory {
 	t.Helper()
 
-	gocloakClientMock := &mocks.GoCloak{}
+	gocloakClientMock := &testutil.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("something went wrong"))
 
-	mockFactory := new(MockedGocloakFactory)
+	return testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
-	mockFactory.On("NewClient", mock.Anything, mock.Anything).Return(gocloakClientMock, nil)
-
-	return mockFactory
 }
 func TestBackend_UpdateConfigConnection(t *testing.T) {
 	var resp *logical.Response
@@ -59,7 +51,7 @@ func TestBackend_UpdateConfigConnection(t *testing.T) {
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
 	b, err := newBackend(config)
-	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
+	b.KeycloakServiceFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +84,7 @@ func TestBackend_UpdateConfigConnection(t *testing.T) {
 		t.Fatalf("unable to read configuration: %v", err)
 	}
 
-	expectedConfig := connectionConfig{
+	expectedConfig := ConnectionConfig{
 		ServerUrl:    "http://auth.example.com",
 		Realm:        "master",
 		ClientId:     "vault",
@@ -109,7 +101,7 @@ func TestBackend_DeleteConfigConnection(t *testing.T) {
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
 	b, err := newBackend(config)
-	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
+	b.KeycloakServiceFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +109,7 @@ func TestBackend_DeleteConfigConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	currentConfig := connectionConfig{
+	currentConfig := ConnectionConfig{
 		ServerUrl:    "http://auth.example.com",
 		Realm:        "master",
 		ClientId:     "vault",
@@ -141,7 +133,7 @@ func TestBackend_DeleteConfigConnection(t *testing.T) {
 		t.Fatal("expected a nil response")
 	}
 
-	expectedConfig := connectionConfig{
+	expectedConfig := ConnectionConfig{
 		ServerUrl:    "",
 		Realm:        "",
 		ClientId:     "",
@@ -164,7 +156,7 @@ func TestBackend_ReadConfigConnection(t *testing.T) {
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
 	b, err := newBackend(config)
-	b.GocloakFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
+	b.KeycloakServiceFactory = mockedGocloakFactory(t, "master", "vault", "secret123")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +164,7 @@ func TestBackend_ReadConfigConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	connectionConfig := connectionConfig{
+	connectionConfig := ConnectionConfig{
 		ServerUrl:    "http://auth.example.com",
 		Realm:        "master",
 		ClientId:     "vault",
@@ -215,7 +207,7 @@ func TestBackend_ConfigConnectionFailsIfNotConnectable(t *testing.T) {
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
 	b, err := newBackend(config)
-	b.GocloakFactory = failingMockedGocloakFactory(t)
+	b.KeycloakServiceFactory = failingMockedGocloakFactory(t)
 	if err != nil {
 		t.Fatal(err)
 	}

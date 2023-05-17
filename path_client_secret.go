@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Nerzal/gocloak/v11"
+	"github.com/Nerzal/gocloak/v13"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 )
@@ -54,9 +55,9 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 	return response, nil
 }
 
-func (b *backend) readClientSecret(ctx context.Context, clientId string, config connectionConfig) (string, error) {
+func (b *backend) readClientSecret(ctx context.Context, clientId string, config ConnectionConfig) (string, error) {
 
-	goclaokClient, err := b.GocloakFactory.NewClient(ctx, config)
+	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
 
 	if err != nil {
 		return "", err

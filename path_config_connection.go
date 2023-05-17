@@ -61,7 +61,7 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 		return logical.ErrorResponse("missing client_secret"), nil
 	}
 
-	config := connectionConfig{
+	config := ConnectionConfig{
 		ServerUrl:    server_url,
 		Realm:        realm,
 		ClientId:     clientId,
@@ -111,23 +111,23 @@ func (b *backend) pathConnectionRead(ctx context.Context, req *logical.Request, 
 
 }
 
-func readConfig(ctx context.Context, storage logical.Storage) (connectionConfig, error) {
+func readConfig(ctx context.Context, storage logical.Storage) (ConnectionConfig, error) {
 	entry, err := storage.Get(ctx, storageKey)
 	if err != nil {
-		return connectionConfig{}, err
+		return ConnectionConfig{}, err
 	}
 	if entry == nil {
-		return connectionConfig{}, nil
+		return ConnectionConfig{}, nil
 	}
 
-	var connConfig connectionConfig
+	var connConfig ConnectionConfig
 	if err := entry.DecodeJSON(&connConfig); err != nil {
-		return connectionConfig{}, err
+		return ConnectionConfig{}, err
 	}
 	return connConfig, nil
 }
 
-func writeConfig(ctx context.Context, storage logical.Storage, config connectionConfig) error {
+func writeConfig(ctx context.Context, storage logical.Storage, config ConnectionConfig) error {
 	entry, err := logical.StorageEntryJSON(storageKey, config)
 	if err != nil {
 		return err
@@ -146,8 +146,8 @@ func deleteConfig(ctx context.Context, storage logical.Storage) error {
 	return nil
 }
 
-// connectionConfig contains the information required to make a connection to a RabbitMQ node
-type connectionConfig struct {
+// ConnectionConfig contains the information required to make a connection to a RabbitMQ node
+type ConnectionConfig struct {
 	ServerUrl    string `json:"server_url"`
 	Realm        string `json:"realm"`
 	ClientId     string `json:"client_id"`
