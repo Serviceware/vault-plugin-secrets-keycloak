@@ -28,7 +28,7 @@ func prepareKeycloakTestContainer(t *testing.T) (func(), string, string, string,
 
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
-		Image:        "jboss/keycloak:latest",
+		Image:        "jboss/keycloak:15.1.1",
 		ExposedPorts: []string{"8080/tcp"},
 		WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
 		Env: map[string]string{
