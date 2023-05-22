@@ -21,107 +21,10 @@ import (
 const (
 	keycloakUsername = "admin"
 	keycloakPassword = "admin"
-)
 
-// inspired by https://github.com/hashicorp/vault/blob/main/builtin/logical/rabbitmq/backend_test.go
-
-func prepareLegacyKeycloakTestContainer(t *testing.T) (func(), string, string, string, string) {
-
-	t.Helper()
-	client := "vault"
-	realm := "master"
-
-	ctx := context.Background()
-	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
-
-	keycloakC, cleanupKeycloak := startLegacyKeycloak(t, ctx, networkName)
-
-	ip, err := keycloakC.Host(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container ip: %s", err)
-	}
-	port, err := keycloakC.MappedPort(ctx, "8080")
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container port: %s", err)
-	}
-	serverUrl := fmt.Sprintf("http://%s:%s/auth", ip, port.Port())
-
-	applyTerraform(t, ctx, networkName, `
-	terraform {
-	   required_providers {
-		 keycloak = {
-		   source = "mrparkers/keycloak"
-		   version = "4.2.0"
-		 }
-	   }
-	 }
-	 
-	 provider "keycloak" {
-		 # set by environment variables
-		 client_id     = "admin-cli"
-		 username      = "admin"
-		 password      = "admin"
-		 url           = "http://keycloak:8080"
-		 base_path = "/auth"
-	 }
-	 variable "client" {
-	   type = string
-	 }
-	 data "keycloak_realm" "realm" {
-		 realm = "master"
-	 }
-	 data "keycloak_role" "admin" {
-		realm_id = data.keycloak_realm.realm.id
-		name     = "admin"
-	 }
-	  
-	 resource "keycloak_openid_client" "openid_client" {
-		realm_id            =  data.keycloak_realm.realm.id
-		client_id           = var.client
-		client_secret 		= var.client
-		enabled             = true
-		access_type         = "CONFIDENTIAL"
-		service_accounts_enabled = true	
-	}
-	resource "keycloak_openid_client_service_account_realm_role" "client_service_account_role" {
-		realm_id                = data.keycloak_realm.realm.id
-		service_account_user_id = keycloak_openid_client.openid_client.service_account_user_id
-		role                    = data.keycloak_role.admin.name
-	}
-   
-   `, map[string]interface{}{
-		"client": client,
-	})
-
-	//serverUrl := "http://localhost:8080"
-	return func() {
-		cleanupKeycloak()
-		cleanupNetwork()
-	}, serverUrl, realm, client, client
-}
-
-func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string, string, string, string) {
-
-	t.Helper()
-	client := "vault"
-	realm := "master"
-
-	ctx := context.Background()
-	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
-
-	keycloakC, cleanupKeycloak := startKeycloakWithVersion(t, ctx, networkName, version)
-
-	ip, err := keycloakC.Host(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container ip: %s", err)
-	}
-	port, err := keycloakC.MappedPort(ctx, "8080")
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container port: %s", err)
-	}
-	serverUrl := fmt.Sprintf("http://%s:%s", ip, port.Port())
-
-	applyTerraform(t, ctx, networkName, `
+	vaultClientId     = "vault"
+	vaultClientSecret = "vault123"
+	basicTfSetup      = `
 	terraform {
 	   required_providers {
 		 keycloak = {
@@ -139,9 +42,7 @@ func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string,
 		 url           = "http://keycloak:8080"
 	
 	 }
-	 variable "client" {
-	   type = string
-	 }
+
 	 data "keycloak_realm" "realm" {
 		 realm = "master"
 	 }
@@ -152,8 +53,8 @@ func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string,
 	  
 	 resource "keycloak_openid_client" "openid_client" {
 		realm_id            =  data.keycloak_realm.realm.id
-		client_id           = var.client
-		client_secret 		= var.client
+		client_id           = "vault"
+		client_secret 		= "vault123"
 		enabled             = true
 		access_type         = "CONFIDENTIAL"
 		service_accounts_enabled = true	
@@ -164,15 +65,67 @@ func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string,
 		role                    = data.keycloak_role.admin.name
 	}
    
-   `, map[string]interface{}{
-		"client": client,
-	})
+   `
+)
+
+// inspired by https://github.com/hashicorp/vault/blob/main/builtin/logical/rabbitmq/backend_test.go
+
+func prepareLegacyKeycloakTestContainer(t *testing.T) (func(), string, string, string, string) {
+
+	t.Helper()
+	realm := "master"
+
+	ctx := context.Background()
+	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
+
+	keycloakC, cleanupKeycloak := startLegacyKeycloak(t, ctx, networkName)
+
+	ip, err := keycloakC.Host(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get keycloak container ip: %s", err)
+	}
+	port, err := keycloakC.MappedPort(ctx, "8080")
+	if err != nil {
+		t.Fatalf("Failed to get keycloak container port: %s", err)
+	}
+	serverUrl := fmt.Sprintf("http://%s:%s/auth", ip, port.Port())
+
+	applyTerraform(t, ctx, networkName, basicTfSetup, nil, "/auth")
 
 	//serverUrl := "http://localhost:8080"
 	return func() {
 		cleanupKeycloak()
 		cleanupNetwork()
-	}, serverUrl, realm, client, client
+	}, serverUrl, realm, vaultClientId, vaultClientSecret
+}
+
+func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string, string, string, string) {
+
+	t.Helper()
+	realm := "master"
+
+	ctx := context.Background()
+	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
+
+	keycloakC, cleanupKeycloak := startKeycloakWithVersion(t, ctx, networkName, version)
+
+	ip, err := keycloakC.Host(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get keycloak container ip: %s", err)
+	}
+	port, err := keycloakC.MappedPort(ctx, "8080")
+	if err != nil {
+		t.Fatalf("Failed to get keycloak container port: %s", err)
+	}
+	serverUrl := fmt.Sprintf("http://%s:%s", ip, port.Port())
+
+	applyTerraform(t, ctx, networkName, basicTfSetup, nil, "")
+
+	//serverUrl := "http://localhost:8080"
+	return func() {
+		cleanupKeycloak()
+		cleanupNetwork()
+	}, serverUrl, realm, vaultClientId, vaultClientSecret
 }
 func TestBackend_basic_on_legacy(t *testing.T) {
 	b, _ := Factory(context.Background(), logical.TestBackendConfig())
@@ -388,11 +341,17 @@ func createTestingNetwork(t *testing.T, ctx context.Context) (string, func()) {
 	}
 }
 
-func applyTerraform(t *testing.T, ctx context.Context, networkName string, terraformContent string, vars map[string]interface{}) {
+func applyTerraform(t *testing.T, ctx context.Context, networkName string, terraformContent string, vars map[string]interface{}, basePath string) {
 
 	t.Helper()
 
 	content := []byte(terraformContent)
+
+	env := map[string]string{}
+
+	if basePath != "" {
+		env["KEYCLOAK_BASE_PATH"] = basePath
+	}
 
 	req := testcontainers.ContainerRequest{
 		Image:      "hashicorp/terraform:latest",
@@ -402,6 +361,7 @@ func applyTerraform(t *testing.T, ctx context.Context, networkName string, terra
 		Networks: []string{
 			networkName,
 		},
+		Env: env,
 	}
 
 	terraformC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
