@@ -48,7 +48,7 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		ClientId:     "vault",
 		ClientSecret: "secret123",
 		Realm:        "somerealm",
-		ServerUrl:    "http://example.com",
+		ServerUrl:    "http://example.com/auth",
 	})
 
 	if err != nil {
@@ -165,7 +165,7 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 		ClientId:     "vault",
 		ClientSecret: "secret123",
 		Realm:        "somerealm",
-		ServerUrl:    "http://example.com",
+		ServerUrl:    "http://example.com/auth",
 	})
 
 	if err != nil {
