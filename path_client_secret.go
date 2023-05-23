@@ -57,6 +57,10 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 
 func (b *backend) readClientSecret(ctx context.Context, clientId string, config ConnectionConfig) (string, error) {
 
+	return b.readClientSecretOfRealm(ctx, config.Realm, clientId, config)
+}
+func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, clientId string, config ConnectionConfig) (string, error) {
+
 	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
 
 	if err != nil {
@@ -68,7 +72,7 @@ func (b *backend) readClientSecret(ctx context.Context, clientId string, config 
 		return "", err
 	}
 
-	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, config.Realm, gocloak.GetClientsParams{
+	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, realm, gocloak.GetClientsParams{
 		ClientID: &clientId,
 	})
 	if err != nil {
@@ -80,11 +84,64 @@ func (b *backend) readClientSecret(ctx context.Context, clientId string, config 
 
 	client := clients[0]
 
-	creds, err := goclaokClient.GetClientSecret(ctx, token.AccessToken, config.Realm, *client.ID)
+	creds, err := goclaokClient.GetClientSecret(ctx, token.AccessToken, realm, *client.ID)
 
 	if err != nil {
 		return "", err
 	}
 
 	return *creds.Value, nil
+}
+
+func pathRealmClientSecret(b *backend) *framework.Path {
+	return &framework.Path{
+		Pattern: "realm/" + framework.GenericNameRegex("realm") + "/client-secret/" + framework.GenericNameRegex("clientId"),
+		Fields: map[string]*framework.FieldSchema{
+			"clientId": {
+				Type:        framework.TypeString,
+				Description: "Name of the client.",
+			},
+			"realm": {
+				Type:        framework.TypeString,
+				Description: "Name of the realm.",
+			},
+		},
+
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ReadOperation: b.pathRealmClientSecretRead,
+		},
+	}
+}
+func (b *backend) pathRealmClientSecretRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	realm := d.Get("realm").(string)
+	if realm == "" {
+		return logical.ErrorResponse("missing realm"), nil
+	}
+	clientId := d.Get("clientId").(string)
+	if clientId == "" {
+		return logical.ErrorResponse("missing client"), nil
+	}
+
+	config, err := readConfig(ctx, req.Storage)
+
+	if err != nil {
+		return logical.ErrorResponse("failed to read config"), err
+	}
+
+	clientSecret, err := b.readClientSecretOfRealm(ctx, realm, clientId, config)
+	if err != nil {
+		return logical.ErrorResponse("could not retrieve client secret"), err
+	}
+
+	// Generate the response
+	issuerUrl := config.ServerUrl + "/auth/realms/" + realm
+	response := &logical.Response{
+		Data: map[string]interface{}{
+			"client_secret": clientSecret,
+			"client_id":     clientId,
+			"issuer_url":    issuerUrl,
+		},
+	}
+
+	return response, nil
 }

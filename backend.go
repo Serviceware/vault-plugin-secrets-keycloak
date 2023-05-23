@@ -67,6 +67,7 @@ func (b *backend) paths() []*framework.Path {
 	return []*framework.Path{
 		pathConfigConnection(b),
 		pathClientSecret(b),
+		pathRealmClientSecret(b),
 	}
 }
 

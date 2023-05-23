@@ -127,3 +127,71 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 	}
 
 }
+
+func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gocloakClientMock := &testutil.MockedKeycloakService{}
+
+	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
+		AccessToken: "access123",
+	}, nil)
+
+	requestedClientId := "myclient"
+	idOfRequestedClient := "123"
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "another-realm", gocloak.GetClientsParams{
+		ClientID: &requestedClientId,
+	}).Return([]*gocloak.Client{
+		{
+			ID: &idOfRequestedClient,
+		},
+	}, nil)
+	secretValue := "mysecret123"
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "another-realm", idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+		Value: &secretValue,
+	}, nil)
+
+	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+
+	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vault",
+		ClientSecret: "secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com",
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+	path := "realm/another-realm/client-secret/" + requestedClientId
+	readClientSecretReq := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      path,
+		Storage:   config.StorageView,
+	}
+	resp, err = b.HandleRequest(context.Background(), readClientSecretReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
+	}
+
+	expectedResponse := map[string]interface{}{
+		"client_secret": "mysecret123",
+		"client_id":     "myclient",
+		"issuer_url":    "http://example.com/auth/realms/another-realm", //TODO: test for new keycloaks
+	}
+
+	if !reflect.DeepEqual(resp.Data, expectedResponse) {
+		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
+	}
+}

@@ -7,11 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Nerzal/gocloak/v13"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	logicaltest "github.com/hashicorp/vault/helper/testhelpers/logical"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/mitchellh/mapstructure"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -399,5 +402,129 @@ func applyTerraform(t *testing.T, ctx context.Context, networkName string, terra
 	if err != nil {
 		t.Fatalf("Failed to start container: %s", err)
 	}
+
+}
+
+// create test with code from clipboard
+func TestIt(t *testing.T) {
+	ctx := context.Background()
+
+	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
+	defer cleanupNetwork()
+
+	// start keycloak
+	keycloakC, cleanupKeycloak := startKeycloakWithVersion(t, ctx, networkName, "21.1.1")
+	defer cleanupKeycloak()
+
+	applyTerraform(t, ctx, networkName, `terraform {
+		required_providers {
+		  keycloak = {
+			source  = "mrparkers/keycloak"
+			version = "4.2.0"
+		  }
+		}
+	  }
+	  
+	  provider "keycloak" {
+		# set by environment variables
+		client_id = "admin-cli"
+		username  = "admin"
+		password  = "admin"
+		url       = "http://keycloak:8080"
+	  }
+	  locals {
+		realms = ["realm-a", "realm-b"]
+	  }
+	  
+	  data "keycloak_realm" "realm" {
+		realm = "master"
+	  }
+	  
+	  
+	  resource "keycloak_openid_client" "vault_client" {
+		realm_id                 = data.keycloak_realm.realm.id
+		client_id                = "vault"
+		client_secret            = "vault123"
+		enabled                  = true
+		access_type              = "CONFIDENTIAL"
+		service_accounts_enabled = true
+	  }
+	  
+	  resource "keycloak_realm" "realm" {
+		for_each = toset(local.realms)
+		realm    = each.key
+		enabled  = true
+	  }
+	  
+	  resource "keycloak_openid_client" "some_client" {
+		for_each                 = keycloak_realm.realm
+		realm_id                 = keycloak_realm.realm[each.key].id
+		client_id                = "some-client"
+		client_secret            = "some-client-secret123"
+		enabled                  = true
+		access_type              = "CONFIDENTIAL"
+		service_accounts_enabled = true
+	  }
+	  data "keycloak_openid_client" "realm_client" {
+		for_each  = keycloak_realm.realm
+		realm_id  = data.keycloak_realm.realm.id
+		client_id = "${each.value.realm}-realm"
+	  }
+	  
+	  
+	  resource "keycloak_openid_client_service_account_role" "view_clients_role_for_realm_client" {
+		realm_id                = data.keycloak_realm.realm.id
+		service_account_user_id = keycloak_openid_client.vault_client.service_account_user_id
+	  
+	  
+		for_each = data.keycloak_openid_client.realm_client
+	  
+		client_id = each.value.id
+		role      = "view-clients"
+	  }
+	  `, nil, "")
+
+	gocaloClient := buildClient(t, ctx, keycloakC, "")
+	// get access token and read client secret of client named "client" in realm "realm1" and "realm2"
+
+	//TODO: figure out which
+
+	realms := []string{"realm-a", "realm-b"}
+	for _, realm := range realms {
+
+		accessToken, err := gocaloClient.LoginClient(ctx, vaultClientId, vaultClientSecret, "master")
+
+		require.NoError(t, err, "Failed to get access token: %s", err)
+		require.NotEmpty(t, accessToken, "Access token is empty")
+
+		clientID := "some-client"
+		clients, err := gocaloClient.GetClients(ctx, accessToken.AccessToken, realm, gocloak.GetClientsParams{
+			ClientID: &clientID,
+		})
+
+		require.NoError(t, err, "Failed to get clients: %s", err)
+		require.NotEmpty(t, clients, "Clients is empty")
+		require.Len(t, clients, 1, "Clients is empty")
+
+		// get client secret of client named "client" in realm "realm2"
+		clientSecretRealm, err := gocaloClient.GetClientSecret(ctx, accessToken.AccessToken, realm, *clients[0].ID)
+
+		assert.NoError(t, err, "Failed to get client secret")
+
+		assert.Equal(t, "some-client-secret123", *clientSecretRealm.Value, "Client does not have expected secret")
+	}
+}
+
+func buildClient(t *testing.T, ctx context.Context, keycloakC testcontainers.Container, basePath string) *gocloak.GoCloak {
+	t.Helper()
+	ip, err := keycloakC.Host(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get container ip: %s", err)
+	}
+	port, err := keycloakC.MappedPort(ctx, "8080")
+	if err != nil {
+		t.Fatalf("Failed to get mapped port: %s", err)
+	}
+	return gocloak.NewClient(fmt.Sprintf("http://%s:%s%s", ip, port.Port(), basePath))
 
 }
