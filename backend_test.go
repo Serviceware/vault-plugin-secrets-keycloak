@@ -7,14 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Nerzal/gocloak/v13"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	logicaltest "github.com/hashicorp/vault/helper/testhelpers/logical"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/mitchellh/mapstructure"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -28,7 +25,8 @@ const (
 
 	vaultClientId     = "vault"
 	vaultClientSecret = "vault123"
-	basicTfSetup      = `
+
+	basicTfSetup = `
 	terraform {
 	   required_providers {
 		 keycloak = {
@@ -139,123 +137,132 @@ const (
   `
 )
 
-// inspired by https://github.com/hashicorp/vault/blob/main/builtin/logical/rabbitmq/backend_test.go
+func TestBackend_BasicAccess(t *testing.T) {
 
-func prepareLegacyKeycloakTestContainer(t *testing.T, tfContent string) (func(), string) {
-
-	t.Helper()
-
-	ctx := context.Background()
-	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
-
-	keycloakC, cleanupKeycloak := startLegacyKeycloak(t, ctx, networkName)
-
-	ip, err := keycloakC.Host(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container ip: %s", err)
+	keycloakContainerEnvVars := map[string]string{
+		"KEYCLOAK_ADMIN":          "admin",
+		"KEYCLOAK_ADMIN_PASSWORD": "admin",
 	}
-	port, err := keycloakC.MappedPort(ctx, "8080")
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container port: %s", err)
+	keycloakBasePath := ""
+	keyloakLegacyContainerEnvVars := map[string]string{
+		"KEYCLOAK_USER":     "admin",
+		"KEYCLOAK_PASSWORD": "admin",
+		"DB_VENDOR":         "H2",
 	}
-	serverUrl := fmt.Sprintf("http://%s:%s/auth", ip, port.Port())
-
-	applyTerraform(t, ctx, networkName, tfContent, nil, "/auth")
-
-	//serverUrl := "http://localhost:8080"
-	return func() {
-		cleanupKeycloak()
-		cleanupNetwork()
-	}, serverUrl
-}
-
-func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string, string, string, string) {
-
-	t.Helper()
-	realm := "master"
-
-	ctx := context.Background()
-	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
-
-	keycloakC, cleanupKeycloak := startKeycloakWithVersion(t, ctx, networkName, version)
-
-	ip, err := keycloakC.Host(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container ip: %s", err)
+	keycloakLegacyBasePath := "/auth"
+	type test struct {
+		keycloakImage string
+		cmd           []string
+		envVars       map[string]string
+		basePath      string
 	}
-	port, err := keycloakC.MappedPort(ctx, "8080")
-	if err != nil {
-		t.Fatalf("Failed to get keycloak container port: %s", err)
-	}
-	serverUrl := fmt.Sprintf("http://%s:%s", ip, port.Port())
 
-	applyTerraform(t, ctx, networkName, basicTfSetup, nil, "")
-
-	//serverUrl := "http://localhost:8080"
-	return func() {
-		cleanupKeycloak()
-		cleanupNetwork()
-	}, serverUrl, realm, vaultClientId, vaultClientSecret
-}
-func TestBackend_basic_on_legacy(t *testing.T) {
-	b, _ := Factory(context.Background(), logical.TestBackendConfig())
-
-	cleanup, server_url := prepareLegacyKeycloakTestContainer(t, basicTfSetup)
-	defer cleanup()
-
-	logicaltest.Test(t, logicaltest.TestCase{
-		PreCheck:       testAccPreCheckFunc(t, server_url),
-		LogicalBackend: b,
-		Steps: []logicaltest.TestStep{
-			testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-			testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-			testAccStepReadSecret(t, vaultClientId, vaultClientSecret),
-			testAccStepConfigDelete(t),
+	tests := []test{
+		{
+			keycloakImage: "quay.io/keycloak/keycloak:21.1.1",
+			cmd:           []string{"start-dev"},
+			envVars:       keycloakContainerEnvVars,
+			basePath:      keycloakBasePath,
 		},
-	})
-}
-
-func TestBackend_multi_on_legacy(t *testing.T) {
-	b, _ := Factory(context.Background(), logical.TestBackendConfig())
-
-	cleanup, server_url := prepareLegacyKeycloakTestContainer(t, tfMultiRealmClientSetup)
-	defer cleanup()
-
-	logicaltest.Test(t, logicaltest.TestCase{
-		PreCheck:       testAccPreCheckFunc(t, server_url),
-		LogicalBackend: b,
-		Steps: []logicaltest.TestStep{
-			testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-			testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-			testAccStepReadRealmClientSecret(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a"),
-			testAccStepReadRealmClientSecret(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b"),
-			testAccStepConfigDelete(t),
+		//legacy
+		{
+			keycloakImage: "jboss/keycloak:16.1.1",
+			envVars:       keyloakLegacyContainerEnvVars,
+			basePath:      keycloakLegacyBasePath,
 		},
-	})
-}
-func TestBackendWithKeycloak(t *testing.T) {
-	versions := []string{"21.1.1", "20.0.5", "19.0.3"}
+		{
+			keycloakImage: "jboss/keycloak:15.1.1",
+			envVars:       keyloakLegacyContainerEnvVars,
+			basePath:      keycloakLegacyBasePath,
+		},
+	}
 
-	for _, version := range versions {
-		t.Run(fmt.Sprintf("Keycloak %s", version), func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.keycloakImage, func(t *testing.T) {
+
 			b, _ := Factory(context.Background(), logical.TestBackendConfig())
 
-			cleanup, serverURL, realm, clientID, clientSecret := prepareKeycloakTestContainer(t, version)
+			cleanup, server_url := prepareKeycloakTestContainer(t, test.keycloakImage, basicTfSetup, test.basePath, test.cmd, test.envVars)
 			defer cleanup()
 
 			logicaltest.Test(t, logicaltest.TestCase{
-				PreCheck:       testAccPreCheckFunc(t, serverURL),
+				PreCheck:       testAccPreCheckFunc(t, server_url),
 				LogicalBackend: b,
 				Steps: []logicaltest.TestStep{
-					testAccStepConfig(t, serverURL, realm, clientID, clientSecret),
-					testAccStepReadConfig(t, serverURL, realm, clientID, clientSecret),
-					testAccStepReadSecret(t, clientID, clientSecret),
+					testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+					testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+					testAccStepReadSecret(t, vaultClientId, vaultClientSecret),
 					testAccStepConfigDelete(t),
 				},
 			})
 		})
 	}
 }
+func TestBackend_MultiRealmAccess(t *testing.T) {
+
+	keycloakContainerEnvVars := map[string]string{
+		"KEYCLOAK_ADMIN":          "admin",
+		"KEYCLOAK_ADMIN_PASSWORD": "admin",
+	}
+	keycloakBasePath := ""
+	keyloakLegacyContainerEnvVars := map[string]string{
+		"KEYCLOAK_USER":     "admin",
+		"KEYCLOAK_PASSWORD": "admin",
+		"DB_VENDOR":         "H2",
+	}
+	keycloakLegacyBasePath := "/auth"
+	type test struct {
+		keycloakImage string
+		cmd           []string
+		envVars       map[string]string
+		basePath      string
+	}
+
+	tests := []test{
+		{
+			keycloakImage: "quay.io/keycloak/keycloak:21.1.1",
+			cmd:           []string{"start-dev"},
+			envVars:       keycloakContainerEnvVars,
+			basePath:      keycloakBasePath,
+		},
+
+		//legacy
+		{
+			keycloakImage: "jboss/keycloak:16.1.1",
+			envVars:       keyloakLegacyContainerEnvVars,
+			basePath:      keycloakLegacyBasePath,
+		},
+		{
+			keycloakImage: "jboss/keycloak:15.1.1",
+			envVars:       keyloakLegacyContainerEnvVars,
+			basePath:      keycloakLegacyBasePath,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.keycloakImage, func(t *testing.T) {
+
+			b, _ := Factory(context.Background(), logical.TestBackendConfig())
+
+			cleanup, server_url := prepareKeycloakTestContainer(t, test.keycloakImage, tfMultiRealmClientSetup, test.basePath, test.cmd, test.envVars)
+			defer cleanup()
+
+			logicaltest.Test(t, logicaltest.TestCase{
+				PreCheck:       testAccPreCheckFunc(t, server_url),
+				LogicalBackend: b,
+				Steps: []logicaltest.TestStep{
+					testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+					testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+					testAccStepReadRealmClientSecret(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a"),
+					testAccStepReadRealmClientSecret(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b"),
+					testAccStepConfigDelete(t),
+				},
+			})
+		})
+	}
+
+}
+
 func testAccPreCheckFunc(t *testing.T, uri string) func() {
 	return func() {
 		if uri == "" {
@@ -370,51 +377,45 @@ func testAccStepReadRealmClientSecret(t *testing.T, realm string, clientId strin
 	}
 }
 
-func startKeycloakWithVersion(t *testing.T, ctx context.Context, networkName string, keycloakVersion string) (testcontainers.Container, func()) {
-	keycloakContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
+func prepareKeycloakTestContainer(t *testing.T, image, tfContent, basePath string, cmd []string, keycloakEnv map[string]string) (func(), string) {
 
-			Image:        fmt.Sprintf("quay.io/keycloak/keycloak:%s", keycloakVersion),
-			ExposedPorts: []string{"8080/tcp"},
-			WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
-			Env: map[string]string{
-				"KEYCLOAK_ADMIN":          "admin",
-				"KEYCLOAK_ADMIN_PASSWORD": "admin",
-			},
-			Cmd: []string{"start-dev"},
-			Networks: []string{
-				networkName,
-			},
-			NetworkAliases: map[string][]string{
-				networkName: {"keycloak"},
-			},
-		},
-		Started: true,
-	})
+	t.Helper()
+
+	ctx := context.Background()
+	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
+
+	keycloakC, cleanupKeycloak := startKeycloak(t, ctx, image, cmd, keycloakEnv, networkName)
+
+	ip, err := keycloakC.Host(ctx)
 	if err != nil {
-		t.Fatalf("Failed to start keycloak container: %s", err)
+		t.Fatalf("Failed to get keycloak container ip: %s", err)
 	}
-	return keycloakContainer, func() {
-		if err := keycloakContainer.Terminate(ctx); err != nil {
-			t.Errorf("failed to terminate container: %s", err.Error())
-		}
+	port, err := keycloakC.MappedPort(ctx, "8080")
+	if err != nil {
+		t.Fatalf("Failed to get keycloak container port: %s", err)
 	}
+	serverUrl := fmt.Sprintf("http://%s:%s%s", ip, port.Port(), basePath)
+
+	applyTerraform(t, ctx, networkName, tfContent, nil, basePath)
+
+	//serverUrl := "http://localhost:8080"
+	return func() {
+		cleanupKeycloak()
+		cleanupNetwork()
+	}, serverUrl
 }
 
-func startLegacyKeycloak(t *testing.T, ctx context.Context, networkName string) (testcontainers.Container, func()) {
+func startKeycloak(t *testing.T, ctx context.Context, image string, cmd []string, env map[string]string, networkName string) (testcontainers.Container, func()) {
 	keycloakC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "jboss/keycloak:16.1.1",
+			Image:        image,
 			ExposedPorts: []string{"8080/tcp"},
 			WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
-			Env: map[string]string{
-				"KEYCLOAK_USER":     keycloakUsername,
-				"KEYCLOAK_PASSWORD": keycloakPassword,
-				"DB_VENDOR":         "H2",
-			},
+			Env:          env,
 			Networks: []string{
 				networkName,
 			},
+			Cmd: cmd,
 			NetworkAliases: map[string][]string{
 				networkName: {"keycloak"},
 			},
@@ -512,63 +513,5 @@ func applyTerraform(t *testing.T, ctx context.Context, networkName string, terra
 	if err != nil {
 		t.Fatalf("Failed to start container: %s", err)
 	}
-
-}
-
-// create test with code from clipboard
-func TestIt(t *testing.T) {
-	ctx := context.Background()
-
-	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
-	defer cleanupNetwork()
-
-	// start keycloak
-	keycloakC, cleanupKeycloak := startKeycloakWithVersion(t, ctx, networkName, "21.1.1")
-	defer cleanupKeycloak()
-
-	applyTerraform(t, ctx, networkName, tfMultiRealmClientSetup, nil, "")
-
-	gocaloClient := buildClient(t, ctx, keycloakC, "")
-	// get access token and read client secret of client named "client" in realm "realm1" and "realm2"
-
-	//TODO: figure out which
-
-	realms := []string{"realm-a", "realm-b"}
-	for _, realm := range realms {
-
-		accessToken, err := gocaloClient.LoginClient(ctx, vaultClientId, vaultClientSecret, "master")
-
-		require.NoError(t, err, "Failed to get access token: %s", err)
-		require.NotEmpty(t, accessToken, "Access token is empty")
-
-		clientID := "some-client"
-		clients, err := gocaloClient.GetClients(ctx, accessToken.AccessToken, realm, gocloak.GetClientsParams{
-			ClientID: &clientID,
-		})
-
-		require.NoError(t, err, "Failed to get clients: %s", err)
-		require.NotEmpty(t, clients, "Clients is empty")
-		require.Len(t, clients, 1, "Clients is empty")
-
-		// get client secret of client named "client" in realm "realm2"
-		clientSecretRealm, err := gocaloClient.GetClientSecret(ctx, accessToken.AccessToken, realm, *clients[0].ID)
-
-		assert.NoError(t, err, "Failed to get client secret")
-
-		assert.Equal(t, fmt.Sprintf("some-client-secret123-in-realm-%s", realm), *clientSecretRealm.Value, "Client does not have expected secret")
-	}
-}
-
-func buildClient(t *testing.T, ctx context.Context, keycloakC testcontainers.Container, basePath string) *gocloak.GoCloak {
-	t.Helper()
-	ip, err := keycloakC.Host(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get container ip: %s", err)
-	}
-	port, err := keycloakC.MappedPort(ctx, "8080")
-	if err != nil {
-		t.Fatalf("Failed to get mapped port: %s", err)
-	}
-	return gocloak.NewClient(fmt.Sprintf("http://%s:%s%s", ip, port.Port(), basePath))
 
 }
