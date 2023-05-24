@@ -22,6 +22,7 @@ import (
 // keycloak admin user/pass
 // admin/admin
 const (
+	realm            = "master"
 	keycloakUsername = "admin"
 	keycloakPassword = "admin"
 
@@ -69,14 +70,80 @@ const (
 	}
    
    `
+	tfMultiRealmClientSetup = `terraform {
+	required_providers {
+	  keycloak = {
+		source  = "mrparkers/keycloak"
+		version = "4.2.0"
+	  }
+	}
+  }
+  
+  provider "keycloak" {
+	# set by environment variables
+	client_id = "admin-cli"
+	username  = "admin"
+	password  = "admin"
+	url       = "http://keycloak:8080"
+  }
+  locals {
+	realms = ["realm-a", "realm-b"]
+  }
+  
+  data "keycloak_realm" "realm" {
+	realm = "master"
+  }
+  
+  
+  resource "keycloak_openid_client" "vault_client" {
+	realm_id                 = data.keycloak_realm.realm.id
+	client_id                = "vault"
+	client_secret            = "vault123"
+	enabled                  = true
+	access_type              = "CONFIDENTIAL"
+	service_accounts_enabled = true
+  }
+  
+  resource "keycloak_realm" "realm" {
+	for_each = toset(local.realms)
+	realm    = each.key
+	enabled  = true
+  }
+  
+  resource "keycloak_openid_client" "some_client" {
+	for_each                 = keycloak_realm.realm
+	realm_id                 = keycloak_realm.realm[each.key].id
+	client_id                = "some-client"
+	client_secret            = "some-client-secret123-in-realm-${keycloak_realm.realm[each.key].id}"
+	enabled                  = true
+	access_type              = "CONFIDENTIAL"
+	service_accounts_enabled = true
+  }
+  data "keycloak_openid_client" "realm_client" {
+	for_each  = keycloak_realm.realm
+	realm_id  = data.keycloak_realm.realm.id
+	client_id = "${each.value.realm}-realm"
+  }
+  
+  
+  resource "keycloak_openid_client_service_account_role" "view_clients_role_for_realm_client" {
+	realm_id                = data.keycloak_realm.realm.id
+	service_account_user_id = keycloak_openid_client.vault_client.service_account_user_id
+  
+  
+	for_each = data.keycloak_openid_client.realm_client
+  
+	client_id = each.value.id
+	role      = "view-clients"
+  }
+  `
 )
 
 // inspired by https://github.com/hashicorp/vault/blob/main/builtin/logical/rabbitmq/backend_test.go
 
-func prepareLegacyKeycloakTestContainer(t *testing.T) (func(), string, string, string, string) {
+func prepareLegacyKeycloakTestContainer(t *testing.T, tfContent string) (func(), string) {
 
 	t.Helper()
-	realm := "master"
 
 	ctx := context.Background()
 	networkName, cleanupNetwork := createTestingNetwork(t, ctx)
@@ -93,13 +160,13 @@ func prepareLegacyKeycloakTestContainer(t *testing.T) (func(), string, string, s
 	}
 	serverUrl := fmt.Sprintf("http://%s:%s/auth", ip, port.Port())
 
-	applyTerraform(t, ctx, networkName, basicTfSetup, nil, "/auth")
+	applyTerraform(t, ctx, networkName, tfContent, nil, "/auth")
 
 	//serverUrl := "http://localhost:8080"
 	return func() {
 		cleanupKeycloak()
 		cleanupNetwork()
-	}, serverUrl, realm, vaultClientId, vaultClientSecret
+	}, serverUrl
 }
 
 func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string, string, string, string) {
@@ -133,16 +200,35 @@ func prepareKeycloakTestContainer(t *testing.T, version string) (func(), string,
 func TestBackend_basic_on_legacy(t *testing.T) {
 	b, _ := Factory(context.Background(), logical.TestBackendConfig())
 
-	cleanup, server_url, realm, client_id, client_secret := prepareLegacyKeycloakTestContainer(t)
+	cleanup, server_url := prepareLegacyKeycloakTestContainer(t, basicTfSetup)
 	defer cleanup()
 
 	logicaltest.Test(t, logicaltest.TestCase{
 		PreCheck:       testAccPreCheckFunc(t, server_url),
 		LogicalBackend: b,
 		Steps: []logicaltest.TestStep{
-			testAccStepConfig(t, server_url, realm, client_id, client_secret),
-			testAccStepReadConfig(t, server_url, realm, client_id, client_secret),
-			testAccStepReadSecret(t, client_id, client_secret),
+			testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+			testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+			testAccStepReadSecret(t, vaultClientId, vaultClientSecret),
+			testAccStepConfigDelete(t),
+		},
+	})
+}
+
+func TestBackend_multi_on_legacy(t *testing.T) {
+	b, _ := Factory(context.Background(), logical.TestBackendConfig())
+
+	cleanup, server_url := prepareLegacyKeycloakTestContainer(t, tfMultiRealmClientSetup)
+	defer cleanup()
+
+	logicaltest.Test(t, logicaltest.TestCase{
+		PreCheck:       testAccPreCheckFunc(t, server_url),
+		LogicalBackend: b,
+		Steps: []logicaltest.TestStep{
+			testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+			testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
+			testAccStepReadRealmClientSecret(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a"),
+			testAccStepReadRealmClientSecret(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b"),
 			testAccStepConfigDelete(t),
 		},
 	})
@@ -239,6 +325,30 @@ func testAccStepReadSecret(t *testing.T, clientId string, expectedClientSecret s
 	return logicaltest.TestStep{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("client-secret/%s", clientId),
+		Check: func(r *logical.Response) error {
+			var d struct {
+				ClientSecret string `mapstructure:"client_secret"`
+			}
+			if err := mapstructure.Decode(r.Data, &d); err != nil {
+				return err
+			}
+
+			if r != nil {
+				if r.IsError() {
+					return fmt.Errorf("error on resp: %#v", *r)
+				}
+			}
+			if d.ClientSecret != expectedClientSecret {
+				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
+			}
+			return nil
+		},
+	}
+}
+func testAccStepReadRealmClientSecret(t *testing.T, realm string, clientId string, expectedClientSecret string) logicaltest.TestStep {
+	return logicaltest.TestStep{
+		Operation: logical.ReadOperation,
+		Path:      fmt.Sprintf("realm/%s/client-secret/%s", realm, clientId),
 		Check: func(r *logical.Response) error {
 			var d struct {
 				ClientSecret string `mapstructure:"client_secret"`
@@ -416,73 +526,7 @@ func TestIt(t *testing.T) {
 	keycloakC, cleanupKeycloak := startKeycloakWithVersion(t, ctx, networkName, "21.1.1")
 	defer cleanupKeycloak()
 
-	applyTerraform(t, ctx, networkName, `terraform {
-		required_providers {
-		  keycloak = {
-			source  = "mrparkers/keycloak"
-			version = "4.2.0"
-		  }
-		}
-	  }
-	  
-	  provider "keycloak" {
-		# set by environment variables
-		client_id = "admin-cli"
-		username  = "admin"
-		password  = "admin"
-		url       = "http://keycloak:8080"
-	  }
-	  locals {
-		realms = ["realm-a", "realm-b"]
-	  }
-	  
-	  data "keycloak_realm" "realm" {
-		realm = "master"
-	  }
-	  
-	  
-	  resource "keycloak_openid_client" "vault_client" {
-		realm_id                 = data.keycloak_realm.realm.id
-		client_id                = "vault"
-		client_secret            = "vault123"
-		enabled                  = true
-		access_type              = "CONFIDENTIAL"
-		service_accounts_enabled = true
-	  }
-	  
-	  resource "keycloak_realm" "realm" {
-		for_each = toset(local.realms)
-		realm    = each.key
-		enabled  = true
-	  }
-	  
-	  resource "keycloak_openid_client" "some_client" {
-		for_each                 = keycloak_realm.realm
-		realm_id                 = keycloak_realm.realm[each.key].id
-		client_id                = "some-client"
-		client_secret            = "some-client-secret123"
-		enabled                  = true
-		access_type              = "CONFIDENTIAL"
-		service_accounts_enabled = true
-	  }
-	  data "keycloak_openid_client" "realm_client" {
-		for_each  = keycloak_realm.realm
-		realm_id  = data.keycloak_realm.realm.id
-		client_id = "${each.value.realm}-realm"
-	  }
-	  
-	  
-	  resource "keycloak_openid_client_service_account_role" "view_clients_role_for_realm_client" {
-		realm_id                = data.keycloak_realm.realm.id
-		service_account_user_id = keycloak_openid_client.vault_client.service_account_user_id
-	  
-	  
-		for_each = data.keycloak_openid_client.realm_client
-	  
-		client_id = each.value.id
-		role      = "view-clients"
-	  }
-	  `, nil, "")
+	applyTerraform(t, ctx, networkName, tfMultiRealmClientSetup, nil, "")
 
 	gocaloClient := buildClient(t, ctx, keycloakC, "")
 	// get access token and read client secret of client named "client" in realm "realm1" and "realm2"
@@ -511,7 +555,7 @@ func TestIt(t *testing.T) {
 
 		assert.NoError(t, err, "Failed to get client secret")
 
-		assert.Equal(t, "some-client-secret123", *clientSecretRealm.Value, "Client does not have expected secret")
+		assert.Equal(t, fmt.Sprintf("some-client-secret123-in-realm-%s", realm), *clientSecretRealm.Value, "Client does not have expected secret")
 	}
 }
 

@@ -67,18 +67,13 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
 	}
-	secret, err := b.readClientSecret(ctx, clientId, config)
-	if err != nil {
-		b.logger.Info("failed to read keycloak", "error", err)
-		return logical.ErrorResponse("failed to read keycloak"), err
-	}
-	if secret != clientSecret {
-		b.logger.Info("the read secret from keycloak for client is different then the one provided. This is a very strange state", clientId)
-		return logical.ErrorResponse("unexpected keycloak secret state"), nil
+
+	if _, _, err := b.getClientAndAccessToken(ctx, config); err != nil {
+		b.logger.Info("failed to access keycloak", "error", err)
+		return logical.ErrorResponse("failed to access keycloak"), err
 	}
 
-	err = writeConfig(ctx, req.Storage, config)
-	if err != nil {
+	if err := writeConfig(ctx, req.Storage, config); err != nil {
 		return nil, err
 	}
 

@@ -61,13 +61,7 @@ func (b *backend) readClientSecret(ctx context.Context, clientId string, config 
 }
 func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, clientId string, config ConnectionConfig) (string, error) {
 
-	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
-
-	if err != nil {
-		return "", err
-	}
-
-	token, err := goclaokClient.LoginClient(ctx, config.ClientId, config.ClientSecret, config.Realm)
+	goclaokClient, token, err := b.getClientAndAccessToken(ctx, config)
 	if err != nil {
 		return "", err
 	}
@@ -91,6 +85,20 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 	}
 
 	return *creds.Value, nil
+}
+
+func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, *gocloak.JWT, error) {
+	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create keycloak client: %w", err)
+	}
+
+	token, err := goclaokClient.LoginClient(ctx, config.ClientId, config.ClientSecret, config.Realm)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to login: %w", err)
+	}
+	return goclaokClient, token, nil
 }
 
 func pathRealmClientSecret(b *backend) *framework.Path {
