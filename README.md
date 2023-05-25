@@ -89,12 +89,12 @@ resource "vaultkeycloak_secret_backend" "keycloak-client-secrets-config" {
 
 The client secret is taken from the credentials tab of the client configuration in Keycloak.
 
-### Read client secret
+### Read client secret of "default" realm
 
 Assuming, you have a client _my-client_ in Keycloak you can finally read the client secret with:
 
 ```
-vault read keycloak-client-secrets/client-secret/my-client
+vault read keycloak-client-secrets/clients/my-client/secret
 ```
 
 The output looks like this:
@@ -104,12 +104,25 @@ Key              Value
 ---              -----
 client_secret    some-very-secret-value
 client_id        my-client
-issuer_url       https://auth.example.org/auth/realms/master
+issuer           https://auth.example.org/auth/realms/master
+```
+### Read client secret of specific realm
+
+
+
+```
+vault read keycloak-client-secrets/realms/my-realm/clients/my-client/secret
 ```
 
-## Test Setup
+The output looks like this:
 
-First run `mockery`
+```
+Key              Value
+---              -----
+client_secret    some-very-secret-value
+client_id        my-client
+issuer           https://auth.example.org/auth/realms/master
+```
 
 ## Test Run
 
@@ -129,5 +142,5 @@ vault write keycloak/config/connection \
     client_id="vault" \
     client_secret="sec3t"
 
-vault read keycloak/client-secret/foo
+vault read keycloak/clients/foo/secret
 ```
