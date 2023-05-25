@@ -104,9 +104,8 @@ client_secret    some-very-secret-value
 client_id        my-client
 issuer           https://auth.example.org/auth/realms/master
 ```
+
 ### Read client secret of specific realm
-
-
 
 ```
 vault read keycloak-client-secrets/realms/my-realm/clients/my-client/secret
