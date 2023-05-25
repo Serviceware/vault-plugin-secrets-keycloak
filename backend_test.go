@@ -191,7 +191,7 @@ func TestBackend_BasicAccess(t *testing.T) {
 				Steps: []logicaltest.TestStep{
 					testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
 					testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-					testAccStepReadSecret(t, vaultClientId, vaultClientSecret),
+					testAccStepReadSecretDeprecated(t, vaultClientId, vaultClientSecret),
 					testAccStepConfigDelete(t),
 				},
 			})
@@ -253,8 +253,8 @@ func TestBackend_MultiRealmAccess(t *testing.T) {
 				Steps: []logicaltest.TestStep{
 					testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
 					testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-					testAccStepReadRealmClientSecret(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a"),
-					testAccStepReadRealmClientSecret(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b"),
+					testAccStepReadRealmClientSecretDeprecated(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a"),
+					testAccStepReadRealmClientSecretDeprecated(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b"),
 					testAccStepConfigDelete(t),
 				},
 			})
@@ -328,7 +328,7 @@ func testAccStepReadConfig(t *testing.T, server_url, realm, client_id, client_se
 	}
 }
 
-func testAccStepReadSecret(t *testing.T, clientId string, expectedClientSecret string) logicaltest.TestStep {
+func testAccStepReadSecretDeprecated(t *testing.T, clientId string, expectedClientSecret string) logicaltest.TestStep {
 	return logicaltest.TestStep{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("client-secret/%s", clientId),
@@ -352,7 +352,7 @@ func testAccStepReadSecret(t *testing.T, clientId string, expectedClientSecret s
 		},
 	}
 }
-func testAccStepReadRealmClientSecret(t *testing.T, realm string, clientId string, expectedClientSecret string) logicaltest.TestStep {
+func testAccStepReadRealmClientSecretDeprecated(t *testing.T, realm string, clientId string, expectedClientSecret string) logicaltest.TestStep {
 	return logicaltest.TestStep{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("realm/%s/client-secret/%s", realm, clientId),

@@ -19,6 +19,7 @@ func pathClientSecret(b *backend) *framework.Path {
 				Description: "Name of the client.",
 			},
 		},
+		Deprecated: true,
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.ReadOperation: b.pathClientSecretRead,
@@ -114,7 +115,7 @@ func pathRealmClientSecret(b *backend) *framework.Path {
 				Description: "Name of the realm.",
 			},
 		},
-
+		Deprecated: true,
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.ReadOperation: b.pathRealmClientSecretRead,
 		},
