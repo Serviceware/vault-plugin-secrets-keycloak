@@ -253,8 +253,8 @@ func TestBackend_MultiRealmAccess(t *testing.T) {
 				Steps: []logicaltest.TestStep{
 					testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
 					testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-					testAccStepReadRealmClientSecretDeprecated(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a"),
-					testAccStepReadRealmClientSecretDeprecated(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b"),
+					testAccStepReadRealmClientSecret(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a", fmt.Sprintf("%s%s", server_url, "/realms/realm-a")),
+					testAccStepReadRealmClientSecret(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b", fmt.Sprintf("%s%s", server_url, "/realms/realm-b")),
 					testAccStepConfigDelete(t),
 				},
 			})
@@ -352,13 +352,15 @@ func testAccStepReadSecretDeprecated(t *testing.T, clientId string, expectedClie
 		},
 	}
 }
-func testAccStepReadRealmClientSecretDeprecated(t *testing.T, realm string, clientId string, expectedClientSecret string) logicaltest.TestStep {
+func testAccStepReadRealmClientSecret(t *testing.T, realm string, clientId string, expectedClientSecret string, expectedIssuer string) logicaltest.TestStep {
 	return logicaltest.TestStep{
 		Operation: logical.ReadOperation,
-		Path:      fmt.Sprintf("realm/%s/client-secret/%s", realm, clientId),
+		Path:      fmt.Sprintf("realms/%s/clients/%s/secret", realm, clientId),
 		Check: func(r *logical.Response) error {
 			var d struct {
 				ClientSecret string `mapstructure:"client_secret"`
+				ClientId     string `mapstructure:"client_id"`
+				Issuer       string `mapstructure:"issuer"`
 			}
 			if err := mapstructure.Decode(r.Data, &d); err != nil {
 				return err
@@ -371,6 +373,36 @@ func testAccStepReadRealmClientSecretDeprecated(t *testing.T, realm string, clie
 			}
 			if d.ClientSecret != expectedClientSecret {
 				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
+			}
+			if d.ClientId != clientId {
+				return fmt.Errorf("id was not as expected: %s", d.ClientId)
+			}
+			if d.Issuer != expectedIssuer {
+				return fmt.Errorf("issuer was %s, expected: %s", d.Issuer, expectedIssuer)
+			}
+			return nil
+		},
+	}
+}
+func testAccStepReadRealmWellknownOpenIdConfig(t *testing.T, realm string, expectedIssuer string) logicaltest.TestStep {
+	return logicaltest.TestStep{
+		Operation: logical.ReadOperation,
+		Path:      fmt.Sprintf("realms/%s/openid-configuration", realm),
+		Check: func(r *logical.Response) error {
+			var d struct {
+				Issuer string `mapstructure:"issuer"`
+			}
+			if err := mapstructure.Decode(r.Data, &d); err != nil {
+				return err
+			}
+
+			if r != nil {
+				if r.IsError() {
+					return fmt.Errorf("error on resp: %#v", *r)
+				}
+			}
+			if d.Issuer != expectedIssuer {
+				return fmt.Errorf("secret was not as expected: %s", d.Issuer)
 			}
 			return nil
 		},

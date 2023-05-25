@@ -39,6 +39,11 @@ func (m *MockedKeycloakService) GetClientSecret(ctx context.Context, token strin
 	return args.Get(0).(*gocloak.CredentialRepresentation), args.Error(1)
 }
 
+func (m *MockedKeycloakService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*keycloakservice.WellKnownOpenidConfiguration, error) {
+	args := m.Called(ctx, realm)
+	return args.Get(0).(*keycloakservice.WellKnownOpenidConfiguration), args.Error(1)
+}
+
 func (m *MockedKeycloakServiceFactory) NewClient(ctx context.Context, connConfig keycloakservice.ConnectionConfig) (keycloakservice.KeycloakService, error) {
 
 	return m.MockedService, nil

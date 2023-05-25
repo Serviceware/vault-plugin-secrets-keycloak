@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/Nerzal/gocloak/v13"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 )
 
-func TestBackend_ReadClientSecret(t *testing.T) {
+func TestBackend_ReadClientSecretDeprecated(t *testing.T) {
 	var resp *logical.Response
 	var err error
 	config := logical.TestBackendConfig()
@@ -72,6 +73,76 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		"client_secret": "mysecret123",
 		"client_id":     "myclient",
 		"issuer_url":    "http://example.com/auth/realms/somerealm",
+	}
+
+	if !reflect.DeepEqual(resp.Data, expectedResponse) {
+		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
+	}
+}
+func TestBackend_ReadClientSecret(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gocloakClientMock := &testutil.MockedKeycloakService{}
+
+	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
+		AccessToken: "access123",
+	}, nil)
+
+	requestedClientId := "myclient"
+	idOfRequestedClient := "123"
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", gocloak.GetClientsParams{
+		ClientID: &requestedClientId,
+	}).Return([]*gocloak.Client{
+		{
+			ID: &idOfRequestedClient,
+		},
+	}, nil)
+	secretValue := "mysecret123"
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+		Value: &secretValue,
+	}, nil)
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloakservice.WellKnownOpenidConfiguration{
+		Issuer: "THIS_IS_THE_ISSUER",
+	}, nil)
+
+	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+
+	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vault",
+		ClientSecret: "secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+	path := "clients/" + requestedClientId + "/secret"
+	readClientSecretReq := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      path,
+		Storage:   config.StorageView,
+	}
+	resp, err = b.HandleRequest(context.Background(), readClientSecretReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
+	}
+
+	expectedResponse := map[string]interface{}{
+		"client_secret": "mysecret123",
+		"client_id":     "myclient",
+		"issuer":        "THIS_IS_THE_ISSUER",
 	}
 
 	if !reflect.DeepEqual(resp.Data, expectedResponse) {
@@ -158,6 +229,9 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "another-realm", idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil)
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "another-realm").Return(&keycloakservice.WellKnownOpenidConfiguration{
+		Issuer: "THIS_IS_THE_ISSUER_FROM_OTHER_REALM",
+	}, nil)
 
 	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
@@ -174,7 +248,7 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 	if err = b.Setup(context.Background(), config); err != nil {
 		t.Fatal(err)
 	}
-	path := "realm/another-realm/client-secret/" + requestedClientId
+	path := "realms/another-realm/clients/" + requestedClientId + "/secret"
 	readClientSecretReq := &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      path,
@@ -188,7 +262,7 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 	expectedResponse := map[string]interface{}{
 		"client_secret": "mysecret123",
 		"client_id":     "myclient",
-		"issuer_url":    "http://example.com/auth/realms/another-realm", //TODO: test for new keycloaks
+		"issuer":        "THIS_IS_THE_ISSUER_FROM_OTHER_REALM",
 	}
 
 	if !reflect.DeepEqual(resp.Data, expectedResponse) {

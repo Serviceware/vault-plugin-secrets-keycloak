@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
-func pathClientSecret(b *backend) *framework.Path {
+func pathClientSecretDeprecated(b *backend) *framework.Path {
 	return &framework.Path{
 		Pattern: "client-secret/" + framework.GenericNameRegex("clientId"),
 		Fields: map[string]*framework.FieldSchema{
@@ -22,11 +22,11 @@ func pathClientSecret(b *backend) *framework.Path {
 		Deprecated: true,
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.ReadOperation: b.pathClientSecretRead,
+			logical.ReadOperation: b.pathClientSecretReadDeprecated,
 		},
 	}
 }
-func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+func (b *backend) pathClientSecretReadDeprecated(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	clientId := d.Get("clientId").(string)
 	if clientId == "" {
 		return logical.ErrorResponse("missing client"), nil
@@ -55,6 +55,64 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 
 	return response, nil
 }
+func pathClientSecret(b *backend) *framework.Path {
+	return &framework.Path{
+		Pattern: "clients/" + framework.GenericNameRegex("clientId") + "/secret",
+		Fields: map[string]*framework.FieldSchema{
+			"clientId": {
+				Type:        framework.TypeString,
+				Description: "Name of the client.",
+			},
+		},
+
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ReadOperation: b.pathClientSecretRead,
+		},
+	}
+}
+func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	clientId := d.Get("clientId").(string)
+	if clientId == "" {
+		return logical.ErrorResponse("missing client"), nil
+	}
+
+	config, err := readConfig(ctx, req.Storage)
+
+	if err != nil {
+		return logical.ErrorResponse("failed to read config"), err
+	}
+
+	clientSecret, err := b.readClientSecret(ctx, clientId, config)
+	if err != nil {
+		return logical.ErrorResponse("could not retrieve client secret"), err
+	}
+
+	openIdConifg, err := b.getGetWellKnownOpenidConfiguration(ctx, config, config.Realm)
+	if err != nil {
+		return logical.ErrorResponse("could not retrieve issuer"), err
+	}
+
+	// Generate the response
+	response := &logical.Response{
+		Data: map[string]interface{}{
+			"client_secret": clientSecret,
+			"client_id":     clientId,
+			"issuer":        openIdConifg.Issuer,
+		},
+	}
+
+	return response, nil
+}
+
+func (b *backend) getGetWellKnownOpenidConfiguration(ctx context.Context, config ConnectionConfig, realm string) (*keycloakservice.WellKnownOpenidConfiguration, error) {
+	client, err := b.getClient(ctx, config)
+
+	if err != nil {
+		return nil, err
+	}
+	openIdConifg, err := client.GetWellKnownOpenidConfiguration(ctx, realm)
+	return openIdConifg, err
+}
 
 func (b *backend) readClientSecret(ctx context.Context, clientId string, config ConnectionConfig) (string, error) {
 
@@ -63,6 +121,7 @@ func (b *backend) readClientSecret(ctx context.Context, clientId string, config 
 func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, clientId string, config ConnectionConfig) (string, error) {
 
 	goclaokClient, token, err := b.getClientAndAccessToken(ctx, config)
+
 	if err != nil {
 		return "", err
 	}
@@ -88,6 +147,16 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 	return *creds.Value, nil
 }
 
+func (b *backend) getClient(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, error) {
+	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create keycloak client: %w", err)
+	}
+
+	return goclaokClient, nil
+
+}
 func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, *gocloak.JWT, error) {
 	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
 
@@ -104,7 +173,7 @@ func (b *backend) getClientAndAccessToken(ctx context.Context, config Connection
 
 func pathRealmClientSecret(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "realm/" + framework.GenericNameRegex("realm") + "/client-secret/" + framework.GenericNameRegex("clientId"),
+		Pattern: "realms/" + framework.GenericNameRegex("realm") + "/clients/" + framework.GenericNameRegex("clientId") + "/secret",
 		Fields: map[string]*framework.FieldSchema{
 			"clientId": {
 				Type:        framework.TypeString,
@@ -115,7 +184,7 @@ func pathRealmClientSecret(b *backend) *framework.Path {
 				Description: "Name of the realm.",
 			},
 		},
-		Deprecated: true,
+
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.ReadOperation: b.pathRealmClientSecretRead,
 		},
@@ -142,13 +211,18 @@ func (b *backend) pathRealmClientSecretRead(ctx context.Context, req *logical.Re
 		return logical.ErrorResponse("could not retrieve client secret"), err
 	}
 
+	openidConfig, err := b.getGetWellKnownOpenidConfiguration(ctx, config, realm)
+	if err != nil {
+		return logical.ErrorResponse("could not retrieve issuer"), err
+	}
+
 	// Generate the response
-	issuerUrl := config.ServerUrl + "/realms/" + realm
+	issuerUrl := openidConfig.Issuer
 	response := &logical.Response{
 		Data: map[string]interface{}{
 			"client_secret": clientSecret,
 			"client_id":     clientId,
-			"issuer_url":    issuerUrl,
+			"issuer":        issuerUrl,
 		},
 	}
 

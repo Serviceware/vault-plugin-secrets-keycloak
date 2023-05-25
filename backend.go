@@ -66,6 +66,7 @@ func newBackend(conf *logical.BackendConfig) (*backend, error) {
 func (b *backend) paths() []*framework.Path {
 	return []*framework.Path{
 		pathConfigConnection(b),
+		pathClientSecretDeprecated(b),
 		pathClientSecret(b),
 		pathRealmClientSecret(b),
 	}
@@ -74,11 +75,32 @@ func (b *backend) paths() []*framework.Path {
 type GoCloakFactory struct {
 }
 
+type GoCloakBasedKeycloakService struct {
+	gocloakClient *gocloak.GoCloak
+}
+
+// implement KeycloakService and delegate methods to gocloakClient
+func (g *GoCloakBasedKeycloakService) LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*gocloak.JWT, error) {
+	return g.gocloakClient.LoginClient(ctx, clientID, clientSecret, realm)
+}
+
+func (g *GoCloakBasedKeycloakService) GetClients(ctx context.Context, token string, realm string, params gocloak.GetClientsParams) ([]*gocloak.Client, error) {
+	return g.gocloakClient.GetClients(ctx, token, realm, params)
+}
+func (g *GoCloakBasedKeycloakService) GetClientSecret(ctx context.Context, token string, realm string, clientID string) (*gocloak.CredentialRepresentation, error) {
+	return g.gocloakClient.GetClientSecret(ctx, token, realm, clientID)
+}
+func (g *GoCloakBasedKeycloakService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*keycloakservice.WellKnownOpenidConfiguration, error) {
+	return nil, nil
+}
+
 func (b *GoCloakFactory) NewClient(ctx context.Context, connConfig keycloakservice.ConnectionConfig) (keycloakservice.KeycloakService, error) {
 
 	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
 
-	return gocloakClient, nil
+	return &GoCloakBasedKeycloakService{
+		gocloakClient: gocloakClient,
+	}, nil
 }
 
 const keycloakHelp = `
