@@ -61,8 +61,6 @@ module "keycloak_vault_config" {
 The plugin takes the credentials from the Keycloak provider. 
 
 ### Configure connection
-> **Warning**
-> Currently this plugin supports only Keycloak below version 17
 
 Now, you can register a connection to Keycloak with:
 
