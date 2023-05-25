@@ -13,8 +13,7 @@ type ConnectionConfig struct {
 	ClientSecret string
 }
 type WellKnownOpenidConfiguration struct {
-	Issuer  string `json:"issuer"`
-	JwksUri string `json:"jwks_uri"`
+	Issuer string `json:"issuer"` //Enough for now
 }
 
 type KeycloakService interface {

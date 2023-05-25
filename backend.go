@@ -2,7 +2,9 @@ package keycloak
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/Nerzal/gocloak/v13"
@@ -76,6 +78,7 @@ type GoCloakFactory struct {
 }
 
 type GoCloakBasedKeycloakService struct {
+	serverUrl     string
 	gocloakClient *gocloak.GoCloak
 }
 
@@ -91,7 +94,19 @@ func (g *GoCloakBasedKeycloakService) GetClientSecret(ctx context.Context, token
 	return g.gocloakClient.GetClientSecret(ctx, token, realm, clientID)
 }
 func (g *GoCloakBasedKeycloakService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*keycloakservice.WellKnownOpenidConfiguration, error) {
-	return nil, nil
+
+	res, err := http.Get(fmt.Sprintf("%s/realms/%s/.well-known/openid-configuration", g.serverUrl, realm))
+
+	if err != nil {
+		return nil, err
+	}
+	config := &keycloakservice.WellKnownOpenidConfiguration{}
+	err = json.NewDecoder(res.Body).Decode(config)
+
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 func (b *GoCloakFactory) NewClient(ctx context.Context, connConfig keycloakservice.ConnectionConfig) (keycloakservice.KeycloakService, error) {
@@ -99,6 +114,7 @@ func (b *GoCloakFactory) NewClient(ctx context.Context, connConfig keycloakservi
 	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
 
 	return &GoCloakBasedKeycloakService{
+		serverUrl:     connConfig.ServerUrl,
 		gocloakClient: gocloakClient,
 	}, nil
 }
