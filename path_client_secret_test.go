@@ -186,7 +186,7 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 	if err = b.Setup(context.Background(), config); err != nil {
 		t.Fatal(err)
 	}
-	path := "client-secret/" + requestedClientId
+	path := "clients/" + requestedClientId + "/secret"
 	readClientSecretReq := &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      path,
