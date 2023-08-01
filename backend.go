@@ -68,6 +68,7 @@ func newBackend(conf *logical.BackendConfig) (*backend, error) {
 func (b *backend) paths() []*framework.Path {
 	return []*framework.Path{
 		pathConfigConnection(b),
+		pathConfigConnectionOfRealm(b),
 		pathClientSecretDeprecated(b),
 		pathClientSecret(b),
 		pathRealmClientSecret(b),
