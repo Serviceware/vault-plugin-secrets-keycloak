@@ -200,10 +200,17 @@ func (b *backend) pathRealmClientSecretRead(ctx context.Context, req *logical.Re
 		return logical.ErrorResponse("missing client"), nil
 	}
 
-	config, err := readConfig(ctx, req.Storage)
-
+	config, err := readConfigForKey(ctx, req.Storage, fmt.Sprintf(storagePerRealmKey, realm))
 	if err != nil {
 		return logical.ErrorResponse("failed to read config"), err
+	}
+	// if config is empty, try to read the default config
+	if config.ServerUrl == "" {
+		config, err = readConfig(ctx, req.Storage)
+		if err != nil {
+			return logical.ErrorResponse("failed to read config"), err
+		}
+
 	}
 
 	clientSecret, err := b.readClientSecretOfRealm(ctx, realm, clientId, config)
