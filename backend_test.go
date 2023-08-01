@@ -26,6 +26,8 @@ const (
 	vaultClientId     = "vault"
 	vaultClientSecret = "vault123"
 
+	specificRealm = "specific-realm"
+
 	basicTfSetup = `
 	terraform {
 	   required_providers {
@@ -132,6 +134,65 @@ const (
 	for_each = data.keycloak_openid_client.realm_client
   
 	client_id = each.value.id
+	role      = "view-clients"
+  }
+  `
+
+	tfSpecificRealmClientSetup = `terraform {
+	required_providers {
+	  keycloak = {
+		source  = "mrparkers/keycloak"
+		version = "4.2.0"
+	  }
+	}
+  }
+  
+  provider "keycloak" {
+	# set by environment variables
+	client_id = "admin-cli"
+	username  = "admin"
+	password  = "admin"
+	url       = "http://keycloak:8080"
+  }
+
+  resource "keycloak_realm" "sepecific_realm" {
+	realm = "specific-realm"
+  }
+  
+  
+  resource "keycloak_openid_client" "vault_client" {
+	realm_id                 = keycloak_realm.sepecific_realm.id
+	client_id                = "vault"
+	client_secret            = "vault123"
+	enabled                  = true
+	access_type              = "CONFIDENTIAL"
+	service_accounts_enabled = true
+  }
+  
+
+  
+  resource "keycloak_openid_client" "some_client" {
+	realm_id                 = keycloak_realm.sepecific_realm.id
+	client_id                = "some-client"
+	client_secret            = "some-client-secret123"
+	enabled                  = true
+	access_type              = "CONFIDENTIAL"
+	service_accounts_enabled = true
+  }
+  data "keycloak_openid_client" "realm_management" {
+
+	realm_id  = keycloak_realm.sepecific_realm.id
+	client_id = "realm-management"
+  }
+  
+  
+  resource "keycloak_openid_client_service_account_role" "view_clients_role_for_realm_client" {
+	realm_id                = keycloak_realm.sepecific_realm.id
+	service_account_user_id = keycloak_openid_client.vault_client.service_account_user_id
+  
+  
+  
+	client_id = data.keycloak_openid_client.realm_management.id
 	role      = "view-clients"
   }
   `
@@ -284,6 +345,19 @@ func testAccStepConfig(t *testing.T, server_url, realm, client_id, client_secret
 		},
 	}
 }
+
+func testAccStepConfigForRealm(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
+
+	return logicaltest.TestStep{
+		Operation: logical.UpdateOperation,
+		Path:      fmt.Sprintf("config/realms/%s/connection", realm),
+		Data: map[string]interface{}{
+			"server_url":    server_url,
+			"client_id":     client_id,
+			"client_secret": client_secret,
+		},
+	}
+}
 func testAccStepConfigDelete(t *testing.T) logicaltest.TestStep {
 
 	return logicaltest.TestStep{
@@ -295,6 +369,43 @@ func testAccStepReadConfig(t *testing.T, server_url, realm, client_id, client_se
 	return logicaltest.TestStep{
 		Operation: logical.ReadOperation,
 		Path:      "config/connection",
+		Check: func(r *logical.Response) error {
+			var d struct {
+				Realm        string `mapstructure:"realm"`
+				ServerUrl    string `mapstructure:"server_url"`
+				ClientId     string `mapstructure:"client_id"`
+				ClientSecret string `mapstructure:"client_secret"`
+			}
+			if err := mapstructure.Decode(r.Data, &d); err != nil {
+				return err
+			}
+
+			if r != nil {
+				if r.IsError() {
+					return fmt.Errorf("error on resp: %#v", *r)
+				}
+			}
+			if d.ClientSecret != client_secret {
+				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
+			}
+			if d.ClientId != client_id {
+				return fmt.Errorf("id was not as expected: %s", d.ClientId)
+			}
+			if d.ServerUrl != server_url {
+				return fmt.Errorf("server_url was not as expected: %s", d.ServerUrl)
+			}
+			if d.Realm != realm {
+				return fmt.Errorf("secret was not as expected: %s", d.Realm)
+			}
+			return nil
+		},
+	}
+}
+
+func testAccStepReadConfigForRealm(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
+	return logicaltest.TestStep{
+		Operation: logical.ReadOperation,
+		Path:      fmt.Sprintf("config/realms/%s/connection", realm),
 		Check: func(r *logical.Response) error {
 			var d struct {
 				Realm        string `mapstructure:"realm"`
@@ -544,6 +655,70 @@ func applyTerraform(t *testing.T, ctx context.Context, networkName string, terra
 	err = terraformC.Start(ctx)
 	if err != nil {
 		t.Fatalf("Failed to start container: %s", err)
+	}
+
+}
+
+func TestBackend_RealmAccessViaSpecificRealm(t *testing.T) {
+
+	keycloakContainerEnvVars := map[string]string{
+		"KEYCLOAK_ADMIN":          "admin",
+		"KEYCLOAK_ADMIN_PASSWORD": "admin",
+	}
+	keycloakBasePath := ""
+	keyloakLegacyContainerEnvVars := map[string]string{
+		"KEYCLOAK_USER":     "admin",
+		"KEYCLOAK_PASSWORD": "admin",
+		"DB_VENDOR":         "H2",
+	}
+	keycloakLegacyBasePath := "/auth"
+	type test struct {
+		keycloakImage string
+		cmd           []string
+		envVars       map[string]string
+		basePath      string
+	}
+
+	tests := []test{
+		{
+			keycloakImage: "quay.io/keycloak/keycloak:21.1.1",
+			cmd:           []string{"start-dev"},
+			envVars:       keycloakContainerEnvVars,
+			basePath:      keycloakBasePath,
+		},
+
+		//legacy
+		{
+			keycloakImage: "jboss/keycloak:16.1.1",
+			envVars:       keyloakLegacyContainerEnvVars,
+			basePath:      keycloakLegacyBasePath,
+		},
+		{
+			keycloakImage: "jboss/keycloak:15.1.1",
+			envVars:       keyloakLegacyContainerEnvVars,
+			basePath:      keycloakLegacyBasePath,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.keycloakImage, func(t *testing.T) {
+
+			b, _ := Factory(context.Background(), logical.TestBackendConfig())
+
+			cleanup, server_url := prepareKeycloakTestContainer(t, test.keycloakImage, tfSpecificRealmClientSetup, test.basePath, test.cmd, test.envVars)
+			defer cleanup()
+
+			logicaltest.Test(t, logicaltest.TestCase{
+				PreCheck:       testAccPreCheckFunc(t, server_url),
+				LogicalBackend: b,
+				Steps: []logicaltest.TestStep{
+					testAccStepConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret),
+					testAccStepReadConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret),
+					testAccStepReadRealmClientSecret(t, specificRealm, "some-client", "some-client-secret123", fmt.Sprintf("%s%s", server_url, "/realms/realm-a")),
+					testAccStepConfigDelete(t),
+				},
+			})
+		})
 	}
 
 }
