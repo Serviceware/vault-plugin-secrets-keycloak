@@ -10,8 +10,8 @@ Please read the [Vault Plugin](https://www.vaultproject.io/docs/plugins) documen
 Unzip the release file and copy the plugin binary into the vault plugin folder:
 
 ```
-unzip vault-plugin-secrets-keycloak_0.2.0_linux_amd64.zip
-cp vault-plugin-secrets-keycloak_v0.2.0 /etc/vault/plugin/keycloak-client-secrets
+unzip vault-plugin-secrets-keycloak_0.4.0_linux_amd64.zip
+cp vault-plugin-secrets-keycloak_v0.4.0 /etc/vault/plugin/keycloak-client-secrets
 ```
 
 Then register the plugin:
@@ -60,7 +60,7 @@ module "keycloak_vault_config" {
 
 The plugin takes the credentials from the Keycloak provider. 
 
-### Configure connection
+### Default Configure connection
 
 Now, you can register a connection to Keycloak with:
 
@@ -86,6 +86,15 @@ resource "vaultkeycloak_secret_backend" "keycloak-client-secrets-config" {
 ```
 
 The client secret is taken from the credentials tab of the client configuration in Keycloak.
+
+### Configure connection for specific realm
+```
+vault write keycloak-client-secrets/config/realms/realm123/connection \
+    server_url="https://auth.example.org/auth" \
+    client_id="vault" \
+    client_secret="secr3t"
+```
+
 
 ### Read client secret of "default" realm
 

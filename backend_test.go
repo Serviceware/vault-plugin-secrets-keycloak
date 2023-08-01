@@ -714,7 +714,7 @@ func TestBackend_RealmAccessViaSpecificRealm(t *testing.T) {
 				Steps: []logicaltest.TestStep{
 					testAccStepConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret),
 					testAccStepReadConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret),
-					testAccStepReadRealmClientSecret(t, specificRealm, "some-client", "some-client-secret123", fmt.Sprintf("%s%s", server_url, "/realms/realm-a")),
+					testAccStepReadRealmClientSecret(t, specificRealm, "some-client", "some-client-secret123", fmt.Sprintf("%s%s", server_url, "/realms/specific-realm")),
 					testAccStepConfigDelete(t),
 				},
 			})
