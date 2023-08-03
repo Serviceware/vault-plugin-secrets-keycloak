@@ -253,7 +253,42 @@ func TestBackend_ConfigConnectionFailsIfNotConnectable(t *testing.T) {
 	}
 
 }
+func TestBackend_ConfigConnectionFailsNotIfNotConnectableAndSetToIgnore(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+	b.KeycloakServiceFactory = failingMockedGocloakFactory(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
 
+	configData := map[string]interface{}{
+		"server_url":                "http://auth.example.com",
+		"realm":                     "master",
+		"client_id":                 "vault",
+		"client_secret":             "wrong_secret",
+		"ignore_connectivity_check": true,
+	}
+	configReq := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "config/connection",
+		Storage:   config.StorageView,
+		Data:      configData,
+	}
+	resp, err = b.HandleRequest(context.Background(), configReq)
+	if err != nil {
+		t.Fatalf("Expected no error")
+	}
+	if resp.IsError() {
+		t.Fatalf("bad: resp: %#v is an error\nerr:%s", resp, err)
+	}
+
+}
 func TestBackend_UpdateConfigConnectionForRealm(t *testing.T) {
 	var resp *logical.Response
 	var err error
@@ -302,6 +337,76 @@ func TestBackend_UpdateConfigConnectionForRealm(t *testing.T) {
 	if !reflect.DeepEqual(actualConfig, expectedConfig) {
 		t.Fatalf("Expected: %#v\nActual: %#v", expectedConfig, actualConfig)
 	}
+}
+
+func TestBackend_ConfigConnectionForRealmFailsIfNotConnectable(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+	b.KeycloakServiceFactory = failingMockedGocloakFactory(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	configData := map[string]interface{}{
+		"server_url":    "http://auth1.example.com",
+		"client_id":     "vault1",
+		"client_secret": "...wrong_secret...",
+	}
+	configReq := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "config/realms/realm1/connection",
+		Storage:   config.StorageView,
+		Data:      configData,
+	}
+	resp, err = b.HandleRequest(context.Background(), configReq)
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
+	if !resp.IsError() {
+		t.Fatalf("bad: resp: %#v is not an error\nerr:%s", resp, err)
+	}
+
+}
+func TestBackend_ConfigConnectionForRealmFailsNotIfNotConnectableAndSetToIgnore(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+	b.KeycloakServiceFactory = failingMockedGocloakFactory(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	configData := map[string]interface{}{
+		"server_url":                "http://auth1.example.com",
+		"client_id":                 "vault1",
+		"client_secret":             "...wrong_secret...",
+		"ignore_connectivity_check": true,
+	}
+	configReq := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "config/realms/realm1/connection",
+		Storage:   config.StorageView,
+		Data:      configData,
+	}
+	resp, err = b.HandleRequest(context.Background(), configReq)
+	if err != nil {
+		t.Fatalf("Expected no error")
+	}
+	if resp.IsError() {
+		t.Fatalf("bad: resp: %#v is an error\nerr:%s", resp, err)
+	}
+
 }
 func TestBackend_UpdateConfigConnectionForRealmDoNotConflict(t *testing.T) {
 	var resp *logical.Response

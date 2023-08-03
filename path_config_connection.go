@@ -33,6 +33,10 @@ func pathConfigConnection(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: `The secret that is used to get an access token`,
 			},
+			"ignore_connectivity_check": {
+				Type:        framework.TypeBool,
+				Description: `Ignore connectivity check`,
+			},
 		},
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
@@ -62,6 +66,10 @@ func pathConfigConnectionOfRealm(b *backend) *framework.Path {
 			"client_secret": {
 				Type:        framework.TypeString,
 				Description: `The secret that is used to get an access token`,
+			},
+			"ignore_connectivity_check": {
+				Type:        framework.TypeBool,
+				Description: `Ignore connectivity check`,
 			},
 		},
 
@@ -93,6 +101,8 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 		return logical.ErrorResponse("missing client_secret"), nil
 	}
 
+	ignore_connectivity_check := data.Get("ignore_connectivity_check").(bool)
+
 	config := ConnectionConfig{
 		ServerUrl:    server_url,
 		Realm:        realm,
@@ -100,9 +110,12 @@ func (b *backend) pathConnectionUpdate(ctx context.Context, req *logical.Request
 		ClientSecret: clientSecret,
 	}
 
-	if _, _, err := b.getClientAndAccessToken(ctx, config); err != nil {
-		b.logger.Info("failed to access keycloak", "error", err)
-		return logical.ErrorResponse("failed to access keycloak"), err
+	if !ignore_connectivity_check {
+
+		if _, _, err := b.getClientAndAccessToken(ctx, config); err != nil {
+			b.logger.Warn("failed to access keycloak", "error", err)
+			return logical.ErrorResponse("failed to access keycloak"), err
+		}
 	}
 
 	if err := writeConfig(ctx, req.Storage, config); err != nil {
@@ -132,6 +145,8 @@ func (b *backend) pathConnectionUpdateOfRealm(ctx context.Context, req *logical.
 		return logical.ErrorResponse("missing client_secret"), nil
 	}
 
+	ignore_connectivity_check := data.Get("ignore_connectivity_check").(bool)
+
 	config := ConnectionConfig{
 		ServerUrl:    server_url,
 		Realm:        realm,
@@ -139,9 +154,12 @@ func (b *backend) pathConnectionUpdateOfRealm(ctx context.Context, req *logical.
 		ClientSecret: clientSecret,
 	}
 
-	if _, _, err := b.getClientAndAccessToken(ctx, config); err != nil {
-		b.logger.Info("failed to access keycloak", "error", err)
-		return logical.ErrorResponse("failed to access keycloak"), err
+	if !ignore_connectivity_check {
+
+		if _, _, err := b.getClientAndAccessToken(ctx, config); err != nil {
+			b.logger.Info("failed to access keycloak", "error", err)
+			return logical.ErrorResponse("failed to access keycloak"), err
+		}
 	}
 
 	if err := writeConfigForKey(ctx, req.Storage, config, fmt.Sprintf(storagePerRealmKey, realm)); err != nil {
