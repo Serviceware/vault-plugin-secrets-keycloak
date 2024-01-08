@@ -9,9 +9,9 @@ import (
 
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
-	logicaltest "github.com/hashicorp/vault/helper/testhelpers/logical"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/mitchellh/mapstructure"
+	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -241,24 +241,21 @@ func TestBackend_BasicAccess(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.keycloakImage, func(t *testing.T) {
 
-			b, _ := Factory(context.Background(), logical.TestBackendConfig())
+			context := context.Background()
+			b, _ := Factory(context, logical.TestBackendConfig())
 
 			cleanup, server_url := prepareKeycloakTestContainer(t, test.keycloakImage, basicTfSetup, test.basePath, test.cmd, test.envVars)
 			defer cleanup()
 
-			logicaltest.Test(t, logicaltest.TestCase{
-				PreCheck:       testAccPreCheckFunc(t, server_url),
-				LogicalBackend: b,
-				Steps: []logicaltest.TestStep{
-					testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-					testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-					testAccStepReadSecretDeprecated(t, vaultClientId, vaultClientSecret),
-					testAccStepConfigDelete(t),
-				},
-			})
+			s := &logical.InmemStorage{}
+			testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret, b, s)
+			testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret, b, s)
+			testAccStepReadSecretDeprecated(t, vaultClientId, vaultClientSecret, b, s)
+			testAccStepConfigDelete(t, b, s)
 		})
 	}
 }
+
 func TestBackend_MultiRealmAccess(t *testing.T) {
 
 	keycloakContainerEnvVars := map[string]string{
@@ -303,38 +300,26 @@ func TestBackend_MultiRealmAccess(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.keycloakImage, func(t *testing.T) {
 
-			b, _ := Factory(context.Background(), logical.TestBackendConfig())
+			context := context.Background()
+			b, _ := Factory(context, logical.TestBackendConfig())
 
 			cleanup, server_url := prepareKeycloakTestContainer(t, test.keycloakImage, tfMultiRealmClientSetup, test.basePath, test.cmd, test.envVars)
 			defer cleanup()
+			s := &logical.InmemStorage{}
 
-			logicaltest.Test(t, logicaltest.TestCase{
-				PreCheck:       testAccPreCheckFunc(t, server_url),
-				LogicalBackend: b,
-				Steps: []logicaltest.TestStep{
-					testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-					testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret),
-					testAccStepReadRealmClientSecret(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a", fmt.Sprintf("%s%s", server_url, "/realms/realm-a")),
-					testAccStepReadRealmClientSecret(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b", fmt.Sprintf("%s%s", server_url, "/realms/realm-b")),
-					testAccStepConfigDelete(t),
-				},
-			})
+			testAccStepConfig(t, server_url, realm, vaultClientId, vaultClientSecret, b, s)
+			testAccStepReadConfig(t, server_url, realm, vaultClientId, vaultClientSecret, b, s)
+			testAccStepReadRealmClientSecret(t, "realm-a", "some-client", "some-client-secret123-in-realm-realm-a", fmt.Sprintf("%s%s", server_url, "/realms/realm-a"), b, s)
+			testAccStepReadRealmClientSecret(t, "realm-b", "some-client", "some-client-secret123-in-realm-realm-b", fmt.Sprintf("%s%s", server_url, "/realms/realm-b"), b, s)
+			testAccStepConfigDelete(t, b, s)
+
 		})
 	}
 
 }
 
-func testAccPreCheckFunc(t *testing.T, uri string) func() {
-	return func() {
-		if uri == "" {
-			t.Fatal("Keycloak URI must be set for acceptance tests")
-		}
-	}
-}
-
-func testAccStepConfig(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
-
-	return logicaltest.TestStep{
+func testAccStepConfig(t *testing.T, server_url, realm, client_id, client_secret string, backend logical.Backend, storage logical.Storage) {
+	req := &logical.Request{
 		Operation: logical.UpdateOperation,
 		Path:      "config/connection",
 		Data: map[string]interface{}{
@@ -343,12 +328,16 @@ func testAccStepConfig(t *testing.T, server_url, realm, client_id, client_secret
 			"client_id":     client_id,
 			"client_secret": client_secret,
 		},
+		Storage: storage,
 	}
+	_, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+
 }
 
-func testAccStepConfigForRealm(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
+func testAccStepConfigForRealm(t *testing.T, server_url, realm, client_id, client_secret string, backend logical.Backend, storage logical.Storage) {
 
-	return logicaltest.TestStep{
+	req := &logical.Request{
 		Operation: logical.UpdateOperation,
 		Path:      fmt.Sprintf("config/realms/%s/connection", realm),
 		Data: map[string]interface{}{
@@ -356,168 +345,134 @@ func testAccStepConfigForRealm(t *testing.T, server_url, realm, client_id, clien
 			"client_id":     client_id,
 			"client_secret": client_secret,
 		},
+		Storage: storage,
 	}
-}
-func testAccStepConfigDelete(t *testing.T) logicaltest.TestStep {
+	_, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
 
-	return logicaltest.TestStep{
+}
+func testAccStepConfigDelete(t *testing.T, backend logical.Backend, storage logical.Storage) {
+
+	req := &logical.Request{
 		Operation: logical.DeleteOperation,
 		Path:      "config/connection",
+		Storage:   storage,
 	}
+	_, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+
 }
-func testAccStepReadConfig(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
-	return logicaltest.TestStep{
+func testAccStepReadConfig(t *testing.T, server_url, realm, client_id, client_secret string, backend logical.Backend, storage logical.Storage) {
+
+	req := &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      "config/connection",
-		Check: func(r *logical.Response) error {
-			var d struct {
-				Realm        string `mapstructure:"realm"`
-				ServerUrl    string `mapstructure:"server_url"`
-				ClientId     string `mapstructure:"client_id"`
-				ClientSecret string `mapstructure:"client_secret"`
-			}
-			if err := mapstructure.Decode(r.Data, &d); err != nil {
-				return err
-			}
 
-			if r != nil {
-				if r.IsError() {
-					return fmt.Errorf("error on resp: %#v", *r)
-				}
-			}
-			if d.ClientSecret != client_secret {
-				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
-			}
-			if d.ClientId != client_id {
-				return fmt.Errorf("id was not as expected: %s", d.ClientId)
-			}
-			if d.ServerUrl != server_url {
-				return fmt.Errorf("server_url was not as expected: %s", d.ServerUrl)
-			}
-			if d.Realm != realm {
-				return fmt.Errorf("secret was not as expected: %s", d.Realm)
-			}
-			return nil
-		},
+		Storage: storage,
 	}
+	res, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	var d struct {
+		Realm        string `mapstructure:"realm"`
+		ServerUrl    string `mapstructure:"server_url"`
+		ClientId     string `mapstructure:"client_id"`
+		ClientSecret string `mapstructure:"client_secret"`
+	}
+	err = mapstructure.Decode(res.Data, &d)
+	require.NoError(t, err, "should not error on decode")
+
+	require.Equalf(t, client_secret, d.ClientSecret, "secret was not as expected: %s", d.ClientSecret)
+	require.Equalf(t, client_id, d.ClientId, "id was not as expected: %s", d.ClientId)
+	require.Equalf(t, server_url, d.ServerUrl, "server_url was not as expected: %s", d.ServerUrl)
+	require.Equalf(t, realm, d.Realm, "secret was not as expected: %s", d.Realm)
+
 }
 
-func testAccStepReadConfigForRealm(t *testing.T, server_url, realm, client_id, client_secret string) logicaltest.TestStep {
-	return logicaltest.TestStep{
+func testAccStepReadConfigForRealm(t *testing.T, server_url, realm, client_id, client_secret string, backend logical.Backend, storage logical.Storage) {
+
+	req := &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("config/realms/%s/connection", realm),
-		Check: func(r *logical.Response) error {
-			var d struct {
-				Realm        string `mapstructure:"realm"`
-				ServerUrl    string `mapstructure:"server_url"`
-				ClientId     string `mapstructure:"client_id"`
-				ClientSecret string `mapstructure:"client_secret"`
-			}
-			if err := mapstructure.Decode(r.Data, &d); err != nil {
-				return err
-			}
 
-			if r != nil {
-				if r.IsError() {
-					return fmt.Errorf("error on resp: %#v", *r)
-				}
-			}
-			if d.ClientSecret != client_secret {
-				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
-			}
-			if d.ClientId != client_id {
-				return fmt.Errorf("id was not as expected: %s", d.ClientId)
-			}
-			if d.ServerUrl != server_url {
-				return fmt.Errorf("server_url was not as expected: %s", d.ServerUrl)
-			}
-			if d.Realm != realm {
-				return fmt.Errorf("secret was not as expected: %s", d.Realm)
-			}
-			return nil
-		},
+		Storage: storage,
 	}
+	res, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	var d struct {
+		Realm        string `mapstructure:"realm"`
+		ServerUrl    string `mapstructure:"server_url"`
+		ClientId     string `mapstructure:"client_id"`
+		ClientSecret string `mapstructure:"client_secret"`
+	}
+	err = mapstructure.Decode(res.Data, &d)
+	require.NoError(t, err, "should not error on decode")
+
+	require.Equalf(t, client_secret, d.ClientSecret, "secret was not as expected: %s", d.ClientSecret)
+	require.Equalf(t, client_id, d.ClientId, "id was not as expected: %s", d.ClientId)
+	require.Equalf(t, server_url, d.ServerUrl, "server_url was not as expected: %s", d.ServerUrl)
+	require.Equalf(t, realm, d.Realm, "secret was not as expected: %s", d.Realm)
+
 }
 
-func testAccStepReadSecretDeprecated(t *testing.T, clientId string, expectedClientSecret string) logicaltest.TestStep {
-	return logicaltest.TestStep{
+func testAccStepReadSecretDeprecated(t *testing.T, clientId string, expectedClientSecret string, backend logical.Backend, storage logical.Storage) {
+
+	req := &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("client-secret/%s", clientId),
-		Check: func(r *logical.Response) error {
-			var d struct {
-				ClientSecret string `mapstructure:"client_secret"`
-			}
-			if err := mapstructure.Decode(r.Data, &d); err != nil {
-				return err
-			}
-
-			if r != nil {
-				if r.IsError() {
-					return fmt.Errorf("error on resp: %#v", *r)
-				}
-			}
-			if d.ClientSecret != expectedClientSecret {
-				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
-			}
-			return nil
-		},
+		Storage:   storage,
 	}
+	res, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	var d struct {
+		ClientSecret string `mapstructure:"client_secret"`
+	}
+	err = mapstructure.Decode(res.Data, &d)
+	require.NoError(t, err, "should not error on decode")
+
 }
-func testAccStepReadRealmClientSecret(t *testing.T, realm string, clientId string, expectedClientSecret string, expectedIssuer string) logicaltest.TestStep {
-	return logicaltest.TestStep{
+func testAccStepReadRealmClientSecret(t *testing.T, realm string, clientId string, expectedClientSecret string, expectedIssuer string, backend logical.Backend, storage logical.Storage) {
+
+	req := &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("realms/%s/clients/%s/secret", realm, clientId),
-		Check: func(r *logical.Response) error {
-			var d struct {
-				ClientSecret string `mapstructure:"client_secret"`
-				ClientId     string `mapstructure:"client_id"`
-				Issuer       string `mapstructure:"issuer"`
-			}
-			if err := mapstructure.Decode(r.Data, &d); err != nil {
-				return err
-			}
-
-			if r != nil {
-				if r.IsError() {
-					return fmt.Errorf("error on resp: %#v", *r)
-				}
-			}
-			if d.ClientSecret != expectedClientSecret {
-				return fmt.Errorf("secret was not as expected: %s", d.ClientSecret)
-			}
-			if d.ClientId != clientId {
-				return fmt.Errorf("id was not as expected: %s", d.ClientId)
-			}
-			if d.Issuer != expectedIssuer {
-				return fmt.Errorf("issuer was %s, expected: %s", d.Issuer, expectedIssuer)
-			}
-			return nil
-		},
+		Storage:   storage,
 	}
+	res, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	var d struct {
+		ClientSecret string `mapstructure:"client_secret"`
+		ClientId     string `mapstructure:"client_id"`
+		Issuer       string `mapstructure:"issuer"`
+	}
+	err = mapstructure.Decode(res.Data, &d)
+	require.NoError(t, err, "should not error on decode")
+
+	require.Equalf(t, expectedClientSecret, d.ClientSecret, "secret was not as expected: %s", d.ClientSecret)
+	require.Equalf(t, clientId, d.ClientId, "id was not as expected: %s", d.ClientId)
+	require.Equalf(t, expectedIssuer, d.Issuer, "issuer was not as expected: %s", d.Issuer)
 }
-func testAccStepReadRealmWellknownOpenIdConfig(t *testing.T, realm string, expectedIssuer string) logicaltest.TestStep {
-	return logicaltest.TestStep{
+func testAccStepReadRealmWellknownOpenIdConfig(t *testing.T, realm string, expectedIssuer string, backend logical.Backend, storage logical.Storage) {
+
+	req := &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      fmt.Sprintf("realms/%s/openid-configuration", realm),
-		Check: func(r *logical.Response) error {
-			var d struct {
-				Issuer string `mapstructure:"issuer"`
-			}
-			if err := mapstructure.Decode(r.Data, &d); err != nil {
-				return err
-			}
-
-			if r != nil {
-				if r.IsError() {
-					return fmt.Errorf("error on resp: %#v", *r)
-				}
-			}
-			if d.Issuer != expectedIssuer {
-				return fmt.Errorf("secret was not as expected: %s", d.Issuer)
-			}
-			return nil
-		},
+		Storage:   storage,
 	}
+	res, err := backend.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	var d struct {
+		Issuer string `mapstructure:"issuer"`
+	}
+	err = mapstructure.Decode(res.Data, &d)
+	require.NoError(t, err, "should not error on decode")
+
+	require.Equalf(t, expectedIssuer, d.Issuer, "issuer was not as expected: %s", d.Issuer)
+
 }
 
 func prepareKeycloakTestContainer(t *testing.T, image, tfContent, basePath string, cmd []string, keycloakEnv map[string]string) (func(), string) {
@@ -703,21 +658,18 @@ func TestBackend_RealmAccessViaSpecificRealm(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.keycloakImage, func(t *testing.T) {
 
-			b, _ := Factory(context.Background(), logical.TestBackendConfig())
+			context := context.Background()
+			b, _ := Factory(context, logical.TestBackendConfig())
 
 			cleanup, server_url := prepareKeycloakTestContainer(t, test.keycloakImage, tfSpecificRealmClientSetup, test.basePath, test.cmd, test.envVars)
 			defer cleanup()
 
-			logicaltest.Test(t, logicaltest.TestCase{
-				PreCheck:       testAccPreCheckFunc(t, server_url),
-				LogicalBackend: b,
-				Steps: []logicaltest.TestStep{
-					testAccStepConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret),
-					testAccStepReadConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret),
-					testAccStepReadRealmClientSecret(t, specificRealm, "some-client", "some-client-secret123", fmt.Sprintf("%s%s", server_url, "/realms/specific-realm")),
-					testAccStepConfigDelete(t),
-				},
-			})
+			s := &logical.InmemStorage{}
+			testAccStepConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret, b, s)
+			testAccStepReadConfigForRealm(t, server_url, specificRealm, vaultClientId, vaultClientSecret, b, s)
+			testAccStepReadRealmClientSecret(t, specificRealm, "some-client", "some-client-secret123", fmt.Sprintf("%s%s", server_url, "/realms/specific-realm"), b, s)
+			testAccStepConfigDelete(t, b, s)
+
 		})
 	}
 
