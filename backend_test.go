@@ -205,12 +205,10 @@ func TestBackend_BasicAccess(t *testing.T) {
 		"KEYCLOAK_ADMIN_PASSWORD": "admin",
 	}
 	keycloakBasePath := ""
-	keyloakLegacyContainerEnvVars := map[string]string{
-		"KEYCLOAK_USER":     "admin",
-		"KEYCLOAK_PASSWORD": "admin",
-		"DB_VENDOR":         "H2",
+	keyloak26ContainerEnvVars := map[string]string{
+		"KC_BOOTSTRAP_ADMIN_USERNAME": "admin",
+		"KC_BOOTSTRAP_ADMIN_PASSWORD": "admin",
 	}
-	keycloakLegacyBasePath := "/auth"
 	type test struct {
 		keycloakImage string
 		cmd           []string
@@ -225,16 +223,17 @@ func TestBackend_BasicAccess(t *testing.T) {
 			envVars:       keycloakContainerEnvVars,
 			basePath:      keycloakBasePath,
 		},
-		//legacy
 		{
-			keycloakImage: "jboss/keycloak:16.1.1",
-			envVars:       keyloakLegacyContainerEnvVars,
-			basePath:      keycloakLegacyBasePath,
+			keycloakImage: "quay.io/keycloak/keycloak:25.0",
+			cmd:           []string{"start-dev"},
+			envVars:       keycloakContainerEnvVars,
+			basePath:      keycloakBasePath,
 		},
 		{
-			keycloakImage: "jboss/keycloak:15.1.1",
-			envVars:       keyloakLegacyContainerEnvVars,
-			basePath:      keycloakLegacyBasePath,
+			keycloakImage: "quay.io/keycloak/keycloak:26.1",
+			cmd:           []string{"start-dev"},
+			envVars:       keyloak26ContainerEnvVars,
+			basePath:      keycloakBasePath,
 		},
 	}
 
@@ -263,12 +262,11 @@ func TestBackend_MultiRealmAccess(t *testing.T) {
 		"KEYCLOAK_ADMIN_PASSWORD": "admin",
 	}
 	keycloakBasePath := ""
-	keyloakLegacyContainerEnvVars := map[string]string{
-		"KEYCLOAK_USER":     "admin",
-		"KEYCLOAK_PASSWORD": "admin",
-		"DB_VENDOR":         "H2",
+	keyloak26ContainerEnvVars := map[string]string{
+		"KC_BOOTSTRAP_ADMIN_USERNAME": "admin",
+		"KC_BOOTSTRAP_ADMIN_PASSWORD": "admin",
 	}
-	keycloakLegacyBasePath := "/auth"
+
 	type test struct {
 		keycloakImage string
 		cmd           []string
@@ -283,17 +281,18 @@ func TestBackend_MultiRealmAccess(t *testing.T) {
 			envVars:       keycloakContainerEnvVars,
 			basePath:      keycloakBasePath,
 		},
-
-		//legacy
 		{
-			keycloakImage: "jboss/keycloak:16.1.1",
-			envVars:       keyloakLegacyContainerEnvVars,
-			basePath:      keycloakLegacyBasePath,
+			keycloakImage: "quay.io/keycloak/keycloak:25.0",
+			cmd:           []string{"start-dev"},
+			envVars:       keycloakContainerEnvVars,
+			basePath:      keycloakBasePath,
 		},
+
 		{
-			keycloakImage: "jboss/keycloak:15.1.1",
-			envVars:       keyloakLegacyContainerEnvVars,
-			basePath:      keycloakLegacyBasePath,
+			keycloakImage: "quay.io/keycloak/keycloak:26.1",
+			cmd:           []string{"start-dev"},
+			envVars:       keyloak26ContainerEnvVars,
+			basePath:      keycloakBasePath,
 		},
 	}
 
@@ -621,12 +620,10 @@ func TestBackend_RealmAccessViaSpecificRealm(t *testing.T) {
 		"KEYCLOAK_ADMIN_PASSWORD": "admin",
 	}
 	keycloakBasePath := ""
-	keyloakLegacyContainerEnvVars := map[string]string{
-		"KEYCLOAK_USER":     "admin",
-		"KEYCLOAK_PASSWORD": "admin",
-		"DB_VENDOR":         "H2",
+	keyloak26ContainerEnvVars := map[string]string{
+		"KC_BOOTSTRAP_ADMIN_USERNAME": "admin",
+		"KC_BOOTSTRAP_ADMIN_PASSWORD": "admin",
 	}
-	keycloakLegacyBasePath := "/auth"
 	type test struct {
 		keycloakImage string
 		cmd           []string
@@ -641,17 +638,17 @@ func TestBackend_RealmAccessViaSpecificRealm(t *testing.T) {
 			envVars:       keycloakContainerEnvVars,
 			basePath:      keycloakBasePath,
 		},
-
-		//legacy
 		{
-			keycloakImage: "jboss/keycloak:16.1.1",
-			envVars:       keyloakLegacyContainerEnvVars,
-			basePath:      keycloakLegacyBasePath,
+			keycloakImage: "quay.io/keycloak/keycloak:25.0",
+			cmd:           []string{"start-dev"},
+			envVars:       keycloakContainerEnvVars,
+			basePath:      keycloakBasePath,
 		},
 		{
-			keycloakImage: "jboss/keycloak:15.1.1",
-			envVars:       keyloakLegacyContainerEnvVars,
-			basePath:      keycloakLegacyBasePath,
+			keycloakImage: "quay.io/keycloak/keycloak:26.1",
+			cmd:           []string{"start-dev"},
+			envVars:       keyloak26ContainerEnvVars,
+			basePath:      keycloakBasePath,
 		},
 	}
 
