@@ -1,6 +1,7 @@
 # Keycloak Secrets via Vault
 
-The purpose of this plugin is to provide Keycloak client secrets from Vault. 
+The purpose of this plugin is to provide Keycloak client secrets from Vault.
+
 ## Setup
 
 Please read the [Vault Plugin](https://www.vaultproject.io/docs/plugins) documentation for how to enable and handle plugins in Vault.
@@ -41,8 +42,11 @@ resource "vault_mount" "keycloak-client-secrets" {
 
 ### Create client
 
-Create a client in Keycloak which should be used by vault to access the client secrets. You can use our 
-[Terraform plugin](https://registry.terraform.io/modules/Serviceware/keycloak-client/vaultkeycloak/latst) to this:
+Create a client in Keycloak which should be used by vault to access the client secrets.
+The client should be a service account role that is able to read client secrets.
+
+You can use our
+[Terraform module](https://registry.terraform.io/modules/Serviceware/keycloak-client/vaultkeycloak/latest) to do this:
 
 ```
 provider "keycloak" {
@@ -58,7 +62,7 @@ module "keycloak_vault_config" {
 }
 ```
 
-The plugin takes the credentials from the Keycloak provider. 
+The plugin takes the credentials from the Keycloak provider.
 
 ### Default Configure connection
 
@@ -77,7 +81,7 @@ or by using our [vaultkeycloak](https://registry.terraform.io/providers/Servicew
 ```
 resource "vaultkeycloak_secret_backend" "keycloak-client-secrets-config" {
   path = "keycloak-client-secrets"
-  
+
   server_url    = "https://auth.example.org/auth"
   realm         = "master"
   client_id     = "vault"
@@ -88,13 +92,13 @@ resource "vaultkeycloak_secret_backend" "keycloak-client-secrets-config" {
 The client secret is taken from the credentials tab of the client configuration in Keycloak.
 
 ### Configure connection for specific realm
+
 ```
 vault write keycloak-client-secrets/config/realms/realm123/connection \
     server_url="https://auth.example.org/auth" \
     client_id="vault" \
     client_secret="secr3t"
 ```
-
 
 ### Read client secret of "default" realm
 
