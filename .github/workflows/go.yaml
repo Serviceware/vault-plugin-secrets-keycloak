@@ -10,12 +10,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.21.5
+          go-version: 1.24.1
       - name: "Check format"
         run: "test -z $(gofmt -l .)"
 
@@ -23,7 +23,7 @@ jobs:
         run: go test ./...
       - name: Build
         run: make build
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: vault-plugin-secrets-keycloak
           path: vault/plugins/vault-plugin-secrets-keycloak

@@ -1,4 +1,10 @@
 {
     "makefile.extensionOutputFolder": "./.vscode",
-    "go.testTimeout": "180s"
+    "go.testTimeout": "180s",
+    
+    "yaml.schemas": {
+        "https://goreleaser.com/static/schema.json": [
+            ".goreleaser.yml"
+        ]
+    }
 }
