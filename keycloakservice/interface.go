@@ -14,17 +14,26 @@ type ConnectionConfig struct {
 	ClientId     string
 	ClientSecret string
 }
+
 type WellKnownOpenidConfiguration struct {
 	Issuer string `json:"issuer"`
 }
 
+// Types, that the [KeycloakService] returns.
+// Defined in terms of gocloak types as a compromise between decoupling and practicality.
+type (
+	JWT                      gocloak.JWT
+	Client                   gocloak.Client
+	GetClientsParams         gocloak.GetClientsParams
+	CredentialRepresentation gocloak.CredentialRepresentation
+)
+
 // KeycloakService describes the relevant subset of keycloak functionality for providing secrets to vault.
 type KeycloakService interface {
-	// Defining the same methods as gocloak.GoCloak.
-	// I know it looks not clean when I leak gocloak types, but I don't want to reimplement all the structs
-	LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*gocloak.JWT, error)
-	GetClients(ctx context.Context, token string, realm string, params gocloak.GetClientsParams) ([]*gocloak.Client, error)
-	GetClientSecret(ctx context.Context, token string, realm string, clientID string) (*gocloak.CredentialRepresentation, error)
+	// Defining the methods in the style of [gocloak.GoCloak].
+	LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*JWT, error)
+	GetClients(ctx context.Context, token string, realm string, params GetClientsParams) ([]*Client, error)
+	GetClientSecret(ctx context.Context, token string, realm string, clientID string) (*CredentialRepresentation, error)
 	GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*WellKnownOpenidConfiguration, error)
 }
 

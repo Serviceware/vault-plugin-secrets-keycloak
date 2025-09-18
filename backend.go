@@ -84,15 +84,27 @@ type GoCloakBasedKeycloakService struct {
 }
 
 // implement KeycloakService and delegate methods to gocloakClient
-func (g *GoCloakBasedKeycloakService) LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*gocloak.JWT, error) {
-	return g.gocloakClient.LoginClient(ctx, clientID, clientSecret, realm)
+func (g *GoCloakBasedKeycloakService) LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*keycloakservice.JWT, error) {
+	jwt, err := g.gocloakClient.LoginClient(ctx, clientID, clientSecret, realm)
+	return (*keycloakservice.JWT)(jwt), err
 }
 
-func (g *GoCloakBasedKeycloakService) GetClients(ctx context.Context, token string, realm string, params gocloak.GetClientsParams) ([]*gocloak.Client, error) {
-	return g.gocloakClient.GetClients(ctx, token, realm, params)
+func (g *GoCloakBasedKeycloakService) GetClients(ctx context.Context, token string, realm string, params keycloakservice.GetClientsParams) ([]*keycloakservice.Client, error) {
+	goCloakClients, err := g.gocloakClient.GetClients(ctx, token, realm, gocloak.GetClientsParams(params))
+	if err != nil {
+		return nil, err
+	}
+
+	clients := make([]*keycloakservice.Client, len(goCloakClients))
+	for i, client := range goCloakClients {
+		clients[i] = (*keycloakservice.Client)(client)
+	}
+
+	return clients, nil
 }
-func (g *GoCloakBasedKeycloakService) GetClientSecret(ctx context.Context, token string, realm string, clientID string) (*gocloak.CredentialRepresentation, error) {
-	return g.gocloakClient.GetClientSecret(ctx, token, realm, clientID)
+func (g *GoCloakBasedKeycloakService) GetClientSecret(ctx context.Context, token string, realm string, clientID string) (*keycloakservice.CredentialRepresentation, error) {
+	credentials, err := g.gocloakClient.GetClientSecret(ctx, token, realm, clientID)
+	return (*keycloakservice.CredentialRepresentation)(credentials), err
 }
 func (g *GoCloakBasedKeycloakService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*keycloakservice.WellKnownOpenidConfiguration, error) {
 

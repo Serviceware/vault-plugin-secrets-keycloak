@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Nerzal/gocloak/v13"
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -126,7 +125,7 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 		return "", err
 	}
 
-	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, realm, gocloak.GetClientsParams{
+	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, realm, keycloakservice.GetClientsParams{
 		ClientID: &clientId,
 	})
 	if err != nil {
@@ -157,7 +156,7 @@ func (b *backend) getClient(ctx context.Context, config ConnectionConfig) (keycl
 	return goclaokClient, nil
 
 }
-func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, *gocloak.JWT, error) {
+func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, *keycloakservice.JWT, error) {
 	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
 
 	if err != nil {

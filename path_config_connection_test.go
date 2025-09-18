@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Nerzal/gocloak/v13"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
@@ -32,20 +32,20 @@ func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockC
 	gocloakClientMock := &testutil.MockedKeycloakService{}
 
 	for _, dummyClient := range mockDummyClients {
-		gocloakClientMock.On("LoginClient", mock.Anything, dummyClient.client_id, dummyClient.client_secret, dummyClient.realm).Return(&gocloak.JWT{
+		gocloakClientMock.On("LoginClient", mock.Anything, dummyClient.client_id, dummyClient.client_secret, dummyClient.realm).Return(&keycloakservice.JWT{
 			AccessToken: "access123",
 		}, nil)
 
 		idOfRequestedClient := "internalClientId123"
-		gocloakClientMock.On("GetClients", mock.Anything, "access123", dummyClient.realm, gocloak.GetClientsParams{
+		gocloakClientMock.On("GetClients", mock.Anything, "access123", dummyClient.realm, keycloakservice.GetClientsParams{
 			ClientID: &dummyClient.client_id,
-		}).Return([]*gocloak.Client{
+		}).Return([]*keycloakservice.Client{
 			{
 				ID: &idOfRequestedClient,
 			},
 		}, nil)
 
-		gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", realm, idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+		gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", realm, idOfRequestedClient).Return(&keycloakservice.CredentialRepresentation{
 			Value: &dummyClient.client_secret,
 		}, nil)
 	}

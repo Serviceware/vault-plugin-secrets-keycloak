@@ -3,7 +3,6 @@ package testutil
 import (
 	"context"
 
-	"github.com/Nerzal/gocloak/v13"
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
 	"github.com/stretchr/testify/mock"
 )
@@ -22,21 +21,21 @@ func NewMockedKeycloakServiceFactory(service *MockedKeycloakService) *MockedKeyc
 }
 
 // mock implementation of KeycloakService
-func (m *MockedKeycloakService) LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*gocloak.JWT, error) {
+func (m *MockedKeycloakService) LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*keycloakservice.JWT, error) {
 	args := m.Called(ctx, clientID, clientSecret, realm)
-	var t *gocloak.JWT = nil
+	var t *keycloakservice.JWT = nil
 	if args.Get(0) != nil {
-		t = args.Get(0).(*gocloak.JWT)
+		t = args.Get(0).(*keycloakservice.JWT)
 	}
 	return t, args.Error(1)
 }
-func (m *MockedKeycloakService) GetClients(ctx context.Context, token string, realm string, params gocloak.GetClientsParams) ([]*gocloak.Client, error) {
+func (m *MockedKeycloakService) GetClients(ctx context.Context, token string, realm string, params keycloakservice.GetClientsParams) ([]*keycloakservice.Client, error) {
 	args := m.Called(ctx, token, realm, params)
-	return args.Get(0).([]*gocloak.Client), args.Error(1)
+	return args.Get(0).([]*keycloakservice.Client), args.Error(1)
 }
-func (m *MockedKeycloakService) GetClientSecret(ctx context.Context, token string, realm string, clientID string) (*gocloak.CredentialRepresentation, error) {
+func (m *MockedKeycloakService) GetClientSecret(ctx context.Context, token string, realm string, clientID string) (*keycloakservice.CredentialRepresentation, error) {
 	args := m.Called(ctx, token, realm, clientID)
-	return args.Get(0).(*gocloak.CredentialRepresentation), args.Error(1)
+	return args.Get(0).(*keycloakservice.CredentialRepresentation), args.Error(1)
 }
 
 func (m *MockedKeycloakService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*keycloakservice.WellKnownOpenidConfiguration, error) {
