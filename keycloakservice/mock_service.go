@@ -6,20 +6,30 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// MockedKeycloakServiceFactory implements [KeycloakServiceFactory] by always
+// returning [MockedKeycloakServiceFactory.Service] from [MockedKeycloakServiceFactory.NewClient].
 type MockedKeycloakServiceFactory struct {
-	MockedService *MockedKeycloakService
+	Service *MockedKeycloakService
 }
+
+// NewMockedKeycloakServiceFactory creates a new [NewMockedKeycloakServiceFactory] that returns the [service].
+func NewMockedKeycloakServiceFactory(service *MockedKeycloakService) *MockedKeycloakServiceFactory {
+	return &MockedKeycloakServiceFactory{
+		Service: service,
+	}
+}
+
+// NewClient implements [KeycloakServiceFactory.NewClient].
+func (m *MockedKeycloakServiceFactory) NewClient(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
+	return m.Service, nil
+}
+
+// MockedKeycloakService implements [KeycloakService] by delegating function
+// calls to [MockedKeycloakService.Mock].
 type MockedKeycloakService struct {
 	mock.Mock
 }
 
-func NewMockedKeycloakServiceFactory(service *MockedKeycloakService) *MockedKeycloakServiceFactory {
-	return &MockedKeycloakServiceFactory{
-		MockedService: service,
-	}
-}
-
-// mock implementation of KeycloakService
 func (m *MockedKeycloakService) LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*JWT, error) {
 	args := m.Called(ctx, clientID, clientSecret, realm)
 	var t *JWT = nil
@@ -40,10 +50,4 @@ func (m *MockedKeycloakService) GetClientSecret(ctx context.Context, token strin
 func (m *MockedKeycloakService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*WellKnownOpenidConfiguration, error) {
 	args := m.Called(ctx, realm)
 	return args.Get(0).(*WellKnownOpenidConfiguration), args.Error(1)
-}
-
-func (m *MockedKeycloakServiceFactory) NewClient(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
-
-	return m.MockedService, nil
-
 }
