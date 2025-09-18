@@ -1,4 +1,4 @@
-package keycloakservice
+package keycloak
 
 import (
 	"context"
@@ -12,14 +12,14 @@ type MockedKeycloakServiceFactory struct {
 	Service *MockedKeycloakService
 }
 
-// NewMockedKeycloakServiceFactory creates a new [ServiceFactoryFunc].
-func NewMockedKeycloakServiceFactory(service *MockedKeycloakService) ServiceFactoryFunc {
-	return func(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
+// NewMockedServiceFactoryFunc creates a new [ServiceFactoryFunc].
+func NewMockedServiceFactoryFunc(service *MockedKeycloakService) ServiceFactoryFunc {
+	return func(ctx context.Context, connConfig ConnectionConfig) (Service, error) {
 		return service, nil
 	}
 }
 
-// MockedKeycloakService implements [KeycloakService] by delegating function
+// MockedKeycloakService implements [Service] by delegating function
 // calls to [MockedKeycloakService.Mock].
 type MockedKeycloakService struct {
 	mock.Mock

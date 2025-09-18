@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 )
@@ -103,7 +103,7 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 	return response, nil
 }
 
-func (b *backend) getGetWellKnownOpenidConfiguration(ctx context.Context, config ConnectionConfig, realm string) (*keycloakservice.WellKnownOpenidConfiguration, error) {
+func (b *backend) getGetWellKnownOpenidConfiguration(ctx context.Context, config ConnectionConfig, realm string) (*keycloak.WellKnownOpenidConfiguration, error) {
 	client, err := b.getClient(ctx, config)
 
 	if err != nil {
@@ -125,7 +125,7 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 		return "", err
 	}
 
-	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, realm, keycloakservice.GetClientsParams{
+	clients, err := goclaokClient.GetClients(ctx, token.AccessToken, realm, keycloak.GetClientsParams{
 		ClientID: &clientId,
 	})
 	if err != nil {
@@ -146,8 +146,8 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 	return *creds.Value, nil
 }
 
-func (b *backend) getClient(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, error) {
-	goclaokClient, err := b.KeycloakServiceFactory(ctx, keycloakservice.ConnectionConfig(config))
+func (b *backend) getClient(ctx context.Context, config ConnectionConfig) (keycloak.Service, error) {
+	goclaokClient, err := b.KeycloakServiceFactory(ctx, keycloak.ConnectionConfig(config))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create keycloak client: %w", err)
@@ -156,8 +156,8 @@ func (b *backend) getClient(ctx context.Context, config ConnectionConfig) (keycl
 	return goclaokClient, nil
 
 }
-func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, *keycloakservice.JWT, error) {
-	goclaokClient, err := b.KeycloakServiceFactory(ctx, keycloakservice.ConnectionConfig(config))
+func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloak.Service, *keycloak.JWT, error) {
+	goclaokClient, err := b.KeycloakServiceFactory(ctx, keycloak.ConnectionConfig(config))
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create keycloak client: %w", err)

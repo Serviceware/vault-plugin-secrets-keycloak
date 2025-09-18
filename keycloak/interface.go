@@ -1,6 +1,6 @@
-// Package keycloaksearvice adapts keycloak functionality.
-// Its core is the [KeycloakService] and its implementations.
-package keycloakservice
+// Package keycloak adapts keycloak functionality.
+// Its core is the [Service] and its implementations.
+package keycloak
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type WellKnownOpenidConfiguration struct {
 	Issuer string `json:"issuer"`
 }
 
-// Types, that the [KeycloakService] returns.
+// Types, that the [Service] returns.
 // Defined in terms of gocloak types as a compromise between decoupling and practicality.
 type (
 	JWT                      gocloak.JWT
@@ -28,8 +28,8 @@ type (
 	CredentialRepresentation gocloak.CredentialRepresentation
 )
 
-// KeycloakService describes the relevant subset of keycloak functionality for providing secrets to vault.
-type KeycloakService interface {
+// Service describes the relevant subset of keycloak functionality for providing secrets to vault.
+type Service interface {
 	// Defining the methods in the style of [gocloak.GoCloak].
 	LoginClient(ctx context.Context, clientID string, clientSecret string, realm string) (*JWT, error)
 	GetClients(ctx context.Context, token string, realm string, params GetClientsParams) ([]*Client, error)
@@ -37,5 +37,5 @@ type KeycloakService interface {
 	GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*WellKnownOpenidConfiguration, error)
 }
 
-// ServiceFactoryFunc is a kind of function that creates new [KeycloakService] instances.
-type ServiceFactoryFunc func(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error)
+// ServiceFactoryFunc is a kind of function that creates new [Service] instances.
+type ServiceFactoryFunc func(ctx context.Context, connConfig ConnectionConfig) (Service, error)

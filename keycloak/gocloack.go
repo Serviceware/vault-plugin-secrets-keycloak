@@ -1,4 +1,4 @@
-package keycloakservice
+package keycloak
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"github.com/Nerzal/gocloak/v13"
 )
 
-// NewGocloackClient is compatible with [ServiceFactoryFunc] and creates a [KeycloakService] instance
+// NewGocloackClient is compatible with [ServiceFactoryFunc] and creates a [Service] instance
 // by wrapping [gocloak.NewClient].
-func NewGocloackClient(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
+func NewGocloackClient(ctx context.Context, connConfig ConnectionConfig) (Service, error) {
 	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
 
 	return &GoCloakBasedKeycloakService{
@@ -20,7 +20,7 @@ func NewGocloackClient(ctx context.Context, connConfig ConnectionConfig) (Keyclo
 	}, nil
 }
 
-// GoCloakBasedKeycloakService implements [KeycloakService] through the [gocloak] package.
+// GoCloakBasedKeycloakService implements [Service] through the [gocloak] package.
 type GoCloakBasedKeycloakService struct {
 	serverUrl     string
 	gocloakClient *gocloak.GoCloak

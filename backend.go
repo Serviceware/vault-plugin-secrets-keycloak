@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 
@@ -15,7 +15,7 @@ import (
 type backend struct {
 	*framework.Backend
 
-	KeycloakServiceFactory keycloakservice.ServiceFactoryFunc
+	KeycloakServiceFactory keycloak.ServiceFactoryFunc
 
 	logger log.Logger
 }
@@ -57,7 +57,7 @@ func newBackend(conf *logical.BackendConfig) (*backend, error) {
 			b.paths(),
 		),
 	}
-	b.KeycloakServiceFactory = keycloakservice.NewGocloackClient
+	b.KeycloakServiceFactory = keycloak.NewGocloackClient
 	b.logger = conf.Logger
 	return b, nil
 }
