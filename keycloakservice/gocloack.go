@@ -9,11 +9,9 @@ import (
 	"github.com/Nerzal/gocloak/v13"
 )
 
-// GoCloakFactory implements [KeycloakServiceFactory] by wrapping
-// [gocloak.NewClient] in [GoCloakFactory.NewClient].
-type GoCloakFactory struct{}
-
-func (b *GoCloakFactory) NewClient(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
+// NewGocloackClient is compatible with [ServiceFactoryFunc] and creates a [KeycloakService] instance
+// by wrapping [gocloak.NewClient].
+func NewGocloackClient(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
 	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
 
 	return &GoCloakBasedKeycloakService{

@@ -12,16 +12,11 @@ type MockedKeycloakServiceFactory struct {
 	Service *MockedKeycloakService
 }
 
-// NewMockedKeycloakServiceFactory creates a new [NewMockedKeycloakServiceFactory] that returns the [service].
-func NewMockedKeycloakServiceFactory(service *MockedKeycloakService) *MockedKeycloakServiceFactory {
-	return &MockedKeycloakServiceFactory{
-		Service: service,
+// NewMockedKeycloakServiceFactory creates a new [ServiceFactoryFunc].
+func NewMockedKeycloakServiceFactory(service *MockedKeycloakService) ServiceFactoryFunc {
+	return func(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
+		return service, nil
 	}
-}
-
-// NewClient implements [KeycloakServiceFactory.NewClient].
-func (m *MockedKeycloakServiceFactory) NewClient(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error) {
-	return m.Service, nil
 }
 
 // MockedKeycloakService implements [KeycloakService] by delegating function

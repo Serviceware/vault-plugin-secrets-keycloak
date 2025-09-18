@@ -147,7 +147,7 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 }
 
 func (b *backend) getClient(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, error) {
-	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
+	goclaokClient, err := b.KeycloakServiceFactory(ctx, keycloakservice.ConnectionConfig(config))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create keycloak client: %w", err)
@@ -157,7 +157,7 @@ func (b *backend) getClient(ctx context.Context, config ConnectionConfig) (keycl
 
 }
 func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloakservice.KeycloakService, *keycloakservice.JWT, error) {
-	goclaokClient, err := b.KeycloakServiceFactory.NewClient(ctx, keycloakservice.ConnectionConfig(config))
+	goclaokClient, err := b.KeycloakServiceFactory(ctx, keycloakservice.ConnectionConfig(config))
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create keycloak client: %w", err)

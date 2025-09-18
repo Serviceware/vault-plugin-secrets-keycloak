@@ -15,7 +15,7 @@ import (
 type backend struct {
 	*framework.Backend
 
-	KeycloakServiceFactory keycloakservice.KeycloakServiceFactory
+	KeycloakServiceFactory keycloakservice.ServiceFactoryFunc
 
 	logger log.Logger
 }
@@ -57,7 +57,7 @@ func newBackend(conf *logical.BackendConfig) (*backend, error) {
 			b.paths(),
 		),
 	}
-	b.KeycloakServiceFactory = &keycloakservice.GoCloakFactory{}
+	b.KeycloakServiceFactory = keycloakservice.NewGocloackClient
 	b.logger = conf.Logger
 	return b, nil
 }

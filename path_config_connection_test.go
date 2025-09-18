@@ -17,7 +17,7 @@ type DummyMockClients struct {
 	client_secret string
 }
 
-func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) *keycloakservice.MockedKeycloakServiceFactory {
+func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) keycloakservice.ServiceFactoryFunc {
 	t.Helper()
 	return mockedGocloakFactoryWithDummys(t, DummyMockClients{
 		realm:         realm,
@@ -25,7 +25,7 @@ func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) 
 		client_secret: client_secret,
 	})
 }
-func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) *keycloakservice.MockedKeycloakServiceFactory {
+func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) keycloakservice.ServiceFactoryFunc {
 	t.Helper()
 
 	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
@@ -51,7 +51,7 @@ func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockC
 
 	return keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 }
-func failingMockedGocloakFactory(t *testing.T) *keycloakservice.MockedKeycloakServiceFactory {
+func failingMockedGocloakFactory(t *testing.T) keycloakservice.ServiceFactoryFunc {
 	t.Helper()
 
 	gocloakClientMock := &keycloakservice.MockedKeycloakService{}

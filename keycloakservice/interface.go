@@ -37,7 +37,5 @@ type KeycloakService interface {
 	GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*WellKnownOpenidConfiguration, error)
 }
 
-// KeycloakServiceFactory abstracts the creation of a new [KeycloakService] instance.
-type KeycloakServiceFactory interface {
-	NewClient(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error)
-}
+// ServiceFactoryFunc is a kind of function that creates new [KeycloakService] instances.
+type ServiceFactoryFunc func(ctx context.Context, connConfig ConnectionConfig) (KeycloakService, error)
