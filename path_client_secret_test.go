@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 )
@@ -22,7 +21,7 @@ func TestBackend_ReadClientSecretDeprecated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloakservice.JWT{
 		AccessToken: "access123",
@@ -42,7 +41,7 @@ func TestBackend_ReadClientSecretDeprecated(t *testing.T) {
 		Value: &secretValue,
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -89,7 +88,7 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloakservice.JWT{
 		AccessToken: "access123",
@@ -112,7 +111,7 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		Issuer: "THIS_IS_THE_ISSUER",
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -159,7 +158,7 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloakservice.JWT{
 		AccessToken: "access123",
@@ -171,7 +170,7 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 		ClientID: &requestedClientId,
 	}).Return([]*keycloakservice.Client{}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -209,7 +208,7 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloakservice.JWT{
 		AccessToken: "access123",
@@ -232,7 +231,7 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 		Issuer: "THIS_IS_THE_ISSUER_FROM_OTHER_REALM",
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -280,7 +279,7 @@ func TestBackend_ReadClientSecretForRealm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloakservice.JWT{
 		AccessToken: "access123",
@@ -303,7 +302,7 @@ func TestBackend_ReadClientSecretForRealm(t *testing.T) {
 		Issuer: "THIS_IS_THE_ISSUER",
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
 	writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vaultforrealm",

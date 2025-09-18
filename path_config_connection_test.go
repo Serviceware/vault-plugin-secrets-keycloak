@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 )
@@ -18,7 +17,7 @@ type DummyMockClients struct {
 	client_secret string
 }
 
-func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) *testutil.MockedKeycloakServiceFactory {
+func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) *keycloakservice.MockedKeycloakServiceFactory {
 	t.Helper()
 	return mockedGocloakFactoryWithDummys(t, DummyMockClients{
 		realm:         realm,
@@ -26,10 +25,10 @@ func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) 
 		client_secret: client_secret,
 	})
 }
-func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) *testutil.MockedKeycloakServiceFactory {
+func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) *keycloakservice.MockedKeycloakServiceFactory {
 	t.Helper()
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
 
 	for _, dummyClient := range mockDummyClients {
 		gocloakClientMock.On("LoginClient", mock.Anything, dummyClient.client_id, dummyClient.client_secret, dummyClient.realm).Return(&keycloakservice.JWT{
@@ -50,16 +49,16 @@ func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockC
 		}, nil)
 	}
 
-	return testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	return keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 }
-func failingMockedGocloakFactory(t *testing.T) *testutil.MockedKeycloakServiceFactory {
+func failingMockedGocloakFactory(t *testing.T) *keycloakservice.MockedKeycloakServiceFactory {
 	t.Helper()
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloakservice.MockedKeycloakService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("something went wrong"))
 
-	return testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	return keycloakservice.NewMockedKeycloakServiceFactory(gocloakClientMock)
 
 }
 func TestBackend_UpdateConfigConnection(t *testing.T) {
