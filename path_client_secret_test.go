@@ -21,7 +21,7 @@ func TestBackend_ReadClientSecretDeprecated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &keycloak.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockedService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
@@ -88,7 +88,7 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &keycloak.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockedService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
@@ -158,7 +158,7 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &keycloak.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockedService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
@@ -208,7 +208,7 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &keycloak.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockedService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
@@ -279,7 +279,7 @@ func TestBackend_ReadClientSecretForRealm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &keycloak.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockedService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",

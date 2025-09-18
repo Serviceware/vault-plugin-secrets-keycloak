@@ -28,7 +28,7 @@ func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) 
 func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) keycloak.ServiceFactoryFunc {
 	t.Helper()
 
-	gocloakClientMock := &keycloak.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockedService{}
 
 	for _, dummyClient := range mockDummyClients {
 		gocloakClientMock.On("LoginClient", mock.Anything, dummyClient.client_id, dummyClient.client_secret, dummyClient.realm).Return(&keycloak.JWT{
@@ -54,7 +54,7 @@ func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockC
 func failingMockedGocloakFactory(t *testing.T) keycloak.ServiceFactoryFunc {
 	t.Helper()
 
-	gocloakClientMock := &keycloak.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockedService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("something went wrong"))
 

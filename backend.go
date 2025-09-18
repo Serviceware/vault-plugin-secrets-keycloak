@@ -57,7 +57,7 @@ func newBackend(conf *logical.BackendConfig) (*backend, error) {
 			b.paths(),
 		),
 	}
-	b.KeycloakServiceFactory = keycloak.NewGocloackClient
+	b.KeycloakServiceFactory = keycloak.NewGocloakClient
 	b.logger = conf.Logger
 	return b, nil
 }

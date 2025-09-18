@@ -1,5 +1,5 @@
 // Package keycloak adapts keycloak functionality.
-// Its core is the [Service] and its implementations.
+// Its core is the [Service] and its implementations, especially [GocloakService].
 package keycloak
 
 import (
