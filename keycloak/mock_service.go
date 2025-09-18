@@ -6,14 +6,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockedKeycloakServiceFactory implements [KeycloakServiceFactory] by always
-// returning [MockedKeycloakServiceFactory.Service] from [MockedKeycloakServiceFactory.NewClient].
-type MockedKeycloakServiceFactory struct {
-	Service *MockedKeycloakService
-}
-
-// NewMockedServiceFactoryFunc creates a new [ServiceFactoryFunc].
-func NewMockedServiceFactoryFunc(service *MockedKeycloakService) ServiceFactoryFunc {
+// NewMockedServiceFactoryFunc creates a new [ServiceFactoryFunc] that always returns service.
+func NewMockedServiceFactoryFunc(service Service) ServiceFactoryFunc {
 	return func(ctx context.Context, connConfig ConnectionConfig) (Service, error) {
 		return service, nil
 	}
