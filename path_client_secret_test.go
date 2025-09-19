@@ -5,9 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Nerzal/gocloak/v13"
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloakservice"
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 )
@@ -23,27 +21,27 @@ func TestBackend_ReadClientSecretDeprecated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockService{}
 
-	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
+	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
 	}, nil)
 
 	requestedClientId := "myclient"
 	idOfRequestedClient := "123"
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", gocloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
-	}).Return([]*gocloak.Client{
+	}).Return([]*keycloak.Client{
 		{
 			ID: &idOfRequestedClient,
 		},
 	}, nil)
 	secretValue := "mysecret123"
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -90,30 +88,30 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockService{}
 
-	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
+	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
 	}, nil)
 
 	requestedClientId := "myclient"
 	idOfRequestedClient := "123"
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", gocloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
-	}).Return([]*gocloak.Client{
+	}).Return([]*keycloak.Client{
 		{
 			ID: &idOfRequestedClient,
 		},
 	}, nil)
 	secretValue := "mysecret123"
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil)
-	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloakservice.WellKnownOpenidConfiguration{
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
 		Issuer: "THIS_IS_THE_ISSUER",
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -160,19 +158,19 @@ func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockService{}
 
-	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
+	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
 	}, nil)
 
 	requestedClientId := "myclient"
 
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", gocloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
-	}).Return([]*gocloak.Client{}, nil)
+	}).Return([]*keycloak.Client{}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -210,30 +208,30 @@ func TestBackend_ReadClientSecretFromOtherRealm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockService{}
 
-	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&gocloak.JWT{
+	gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
 	}, nil)
 
 	requestedClientId := "myclient"
 	idOfRequestedClient := "123"
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "another-realm", gocloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "another-realm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
-	}).Return([]*gocloak.Client{
+	}).Return([]*keycloak.Client{
 		{
 			ID: &idOfRequestedClient,
 		},
 	}, nil)
 	secretValue := "mysecret123"
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "another-realm", idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "another-realm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil)
-	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "another-realm").Return(&keycloakservice.WellKnownOpenidConfiguration{
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "another-realm").Return(&keycloak.WellKnownOpenidConfiguration{
 		Issuer: "THIS_IS_THE_ISSUER_FROM_OTHER_REALM",
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
 
 	writeConfig(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vault",
@@ -281,30 +279,30 @@ func TestBackend_ReadClientSecretForRealm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockService{}
 
-	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&gocloak.JWT{
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
 		AccessToken: "access123",
 	}, nil)
 
 	requestedClientId := "myclient"
 	idOfRequestedClient := "123"
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", gocloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
-	}).Return([]*gocloak.Client{
+	}).Return([]*keycloak.Client{
 		{
 			ID: &idOfRequestedClient,
 		},
 	}, nil)
 	secretValue := "mysecret123"
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil)
-	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloakservice.WellKnownOpenidConfiguration{
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
 		Issuer: "THIS_IS_THE_ISSUER",
 	}, nil)
 
-	b.KeycloakServiceFactory = testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
 
 	writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
 		ClientId:     "vaultforrealm",

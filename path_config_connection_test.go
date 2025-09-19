@@ -6,8 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Nerzal/gocloak/v13"
-	"github.com/Serviceware/vault-plugin-secrets-keycloak/testutil"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 )
@@ -18,7 +17,7 @@ type DummyMockClients struct {
 	client_secret string
 }
 
-func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) *testutil.MockedKeycloakServiceFactory {
+func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) keycloak.ServiceFactoryFunc {
 	t.Helper()
 	return mockedGocloakFactoryWithDummys(t, DummyMockClients{
 		realm:         realm,
@@ -26,40 +25,40 @@ func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) 
 		client_secret: client_secret,
 	})
 }
-func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) *testutil.MockedKeycloakServiceFactory {
+func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) keycloak.ServiceFactoryFunc {
 	t.Helper()
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockService{}
 
 	for _, dummyClient := range mockDummyClients {
-		gocloakClientMock.On("LoginClient", mock.Anything, dummyClient.client_id, dummyClient.client_secret, dummyClient.realm).Return(&gocloak.JWT{
+		gocloakClientMock.On("LoginClient", mock.Anything, dummyClient.client_id, dummyClient.client_secret, dummyClient.realm).Return(&keycloak.JWT{
 			AccessToken: "access123",
 		}, nil)
 
 		idOfRequestedClient := "internalClientId123"
-		gocloakClientMock.On("GetClients", mock.Anything, "access123", dummyClient.realm, gocloak.GetClientsParams{
+		gocloakClientMock.On("GetClients", mock.Anything, "access123", dummyClient.realm, keycloak.GetClientsParams{
 			ClientID: &dummyClient.client_id,
-		}).Return([]*gocloak.Client{
+		}).Return([]*keycloak.Client{
 			{
 				ID: &idOfRequestedClient,
 			},
 		}, nil)
 
-		gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", realm, idOfRequestedClient).Return(&gocloak.CredentialRepresentation{
+		gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", realm, idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 			Value: &dummyClient.client_secret,
 		}, nil)
 	}
 
-	return testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	return keycloak.MockServiceFactoryFunc(gocloakClientMock)
 }
-func failingMockedGocloakFactory(t *testing.T) *testutil.MockedKeycloakServiceFactory {
+func failingMockedGocloakFactory(t *testing.T) keycloak.ServiceFactoryFunc {
 	t.Helper()
 
-	gocloakClientMock := &testutil.MockedKeycloakService{}
+	gocloakClientMock := &keycloak.MockService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("something went wrong"))
 
-	return testutil.NewMockedKeycloakServiceFactory(gocloakClientMock)
+	return keycloak.MockServiceFactoryFunc(gocloakClientMock)
 
 }
 func TestBackend_UpdateConfigConnection(t *testing.T) {
