@@ -52,15 +52,14 @@ func (g *GocloakService) GetClientSecret(ctx context.Context, token string, real
 
 func (g *GocloakService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*WellKnownOpenidConfiguration, error) {
 	res, err := http.Get(fmt.Sprintf("%s/realms/%s/.well-known/openid-configuration", g.serverUrl, realm))
-
 	if err != nil {
 		return nil, err
 	}
+
 	config := &WellKnownOpenidConfiguration{}
-	err = json.NewDecoder(res.Body).Decode(config)
-
-	if err != nil {
+	if err = json.NewDecoder(res.Body).Decode(config); err != nil {
 		return nil, err
 	}
+
 	return config, nil
 }
