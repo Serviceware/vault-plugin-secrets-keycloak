@@ -28,7 +28,7 @@ func mockedGocloakFactory(t *testing.T, realm, client_id, client_secret string) 
 func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockClients) keycloak.ServiceFactoryFunc {
 	t.Helper()
 
-	gocloakClientMock := &keycloak.MockedService{}
+	gocloakClientMock := &keycloak.MockService{}
 
 	for _, dummyClient := range mockDummyClients {
 		gocloakClientMock.On("LoginClient", mock.Anything, dummyClient.client_id, dummyClient.client_secret, dummyClient.realm).Return(&keycloak.JWT{
@@ -49,16 +49,16 @@ func mockedGocloakFactoryWithDummys(t *testing.T, mockDummyClients ...DummyMockC
 		}, nil)
 	}
 
-	return keycloak.NewMockedServiceFactoryFunc(gocloakClientMock)
+	return keycloak.MockServiceFactoryFunc(gocloakClientMock)
 }
 func failingMockedGocloakFactory(t *testing.T) keycloak.ServiceFactoryFunc {
 	t.Helper()
 
-	gocloakClientMock := &keycloak.MockedService{}
+	gocloakClientMock := &keycloak.MockService{}
 
 	gocloakClientMock.On("LoginClient", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("something went wrong"))
 
-	return keycloak.NewMockedServiceFactoryFunc(gocloakClientMock)
+	return keycloak.MockServiceFactoryFunc(gocloakClientMock)
 
 }
 func TestBackend_UpdateConfigConnection(t *testing.T) {
