@@ -31,4 +31,4 @@ type Service interface {
 }
 
 // ServiceFactoryFunc is a kind of function that creates new [Service] instances.
-type ServiceFactoryFunc func(ctx context.Context, serverUrl string) (Service, error)
+type ServiceFactoryFunc func(serverUrl string) Service
