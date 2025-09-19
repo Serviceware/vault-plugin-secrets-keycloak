@@ -11,11 +11,11 @@ import (
 
 // NewGocloakClient is compatible with [ServiceFactoryFunc] and creates a [Service] instance
 // by wrapping [gocloak.NewClient].
-func NewGocloakClient(ctx context.Context, connConfig ConnectionConfig) (Service, error) {
-	gocloakClient := gocloak.NewClient(connConfig.ServerUrl)
+func NewGocloakClient(ctx context.Context, serverUrl string) (Service, error) {
+	gocloakClient := gocloak.NewClient(serverUrl)
 
 	return &GocloakService{
-		serverUrl:     connConfig.ServerUrl,
+		serverUrl:     serverUrl,
 		gocloakClient: gocloakClient,
 	}, nil
 }

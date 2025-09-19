@@ -8,13 +8,6 @@ import (
 	"github.com/Nerzal/gocloak/v13"
 )
 
-type ConnectionConfig struct {
-	ServerUrl    string
-	Realm        string
-	ClientId     string
-	ClientSecret string
-}
-
 type WellKnownOpenidConfiguration struct {
 	Issuer string `json:"issuer"`
 }
@@ -38,4 +31,4 @@ type Service interface {
 }
 
 // ServiceFactoryFunc is a kind of function that creates new [Service] instances.
-type ServiceFactoryFunc func(ctx context.Context, connConfig ConnectionConfig) (Service, error)
+type ServiceFactoryFunc func(ctx context.Context, serverUrl string) (Service, error)

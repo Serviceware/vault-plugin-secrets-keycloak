@@ -9,7 +9,7 @@ import (
 // MockServiceFactoryFunc creates a new [ServiceFactoryFunc] that always
 // returns service.
 func MockServiceFactoryFunc(service Service) ServiceFactoryFunc {
-	return func(ctx context.Context, connConfig ConnectionConfig) (Service, error) {
+	return func(_ context.Context, _ string) (Service, error) {
 		return service, nil
 	}
 }
