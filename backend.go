@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -12,12 +13,28 @@ import (
 	log "github.com/hashicorp/go-hclog"
 )
 
+// access hold access information for keycloak with metadata.
+type access struct {
+	JWT         *keycloak.JWT
+	QueriedTime time.Time
+}
+
+// isValidIn checks whether the access information is still valid.
+// Specify delta > 0 to query whether the access is still valid at now + delta
+// in the future.
+func (access access) isValidIn(delta time.Duration) bool {
+	expiryTimeWithDelta := access.QueriedTime.Add(time.Duration(access.JWT.ExpiresIn) * time.Second).Add(delta * -1)
+	return time.Now().Before(expiryTimeWithDelta)
+}
+
 type backend struct {
 	*framework.Backend
 
 	KeycloakServiceFactory keycloak.ServiceFactoryFunc
 
 	logger log.Logger
+
+	access access
 }
 
 var _ logical.Factory = Factory
