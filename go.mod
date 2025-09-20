@@ -1,6 +1,6 @@
 module github.com/Serviceware/vault-plugin-secrets-keycloak
 
-go 1.24.1
+go 1.25.1
 
 require (
 	github.com/Nerzal/gocloak/v13 v13.9.0
