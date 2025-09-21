@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
+	testutil "github.com/Serviceware/vault-plugin-secrets-keycloak/util/test"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -164,23 +165,22 @@ func TestBackend_OnlyLoginWhenNecessary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TODO: Provide common mock setup elsewhere and use it here.
 	requestedClientId := "myclient"
 	makeMock := func(expiresIn time.Duration) *keycloak.MockService {
-		gocloakClientMock := &keycloak.MockService{}
-		gocloakClientMock.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(
-			&keycloak.JWT{AccessToken: "access123",
-				ExpiresIn: int(expiresIn / time.Second),
-			}, nil)
+		jwt := testutil.JWT(expiresIn)
+
+		client := &keycloak.MockService{}
+		client.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(
+			&keycloak.JWT{AccessToken: jwt}, nil)
 		idOfRequestedClient := "123"
-		gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{ClientID: &requestedClientId}).Return(
+		client.On("GetClients", mock.Anything, jwt, "somerealm", keycloak.GetClientsParams{ClientID: &requestedClientId}).Return(
 			[]*keycloak.Client{{ID: &idOfRequestedClient}}, nil)
 		secretValue := "mysecret123"
-		gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(
+		client.On("GetClientSecret", mock.Anything, jwt, "somerealm", idOfRequestedClient).Return(
 			&keycloak.CredentialRepresentation{Value: &secretValue}, nil)
-		gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(
+		client.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(
 			&keycloak.WellKnownOpenidConfiguration{Issuer: "THIS_IS_THE_ISSUER"}, nil)
-		return gocloakClientMock
+		return client
 	}
 
 	tests := []struct {
