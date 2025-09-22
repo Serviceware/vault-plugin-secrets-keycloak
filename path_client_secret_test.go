@@ -155,30 +155,33 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 func TestBackend_OnlyLoginWhenNecessary(t *testing.T) {
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
-	err := writeConfig(t.Context(), config.StorageView, ConnectionConfig{
+	authProperties := ConnectionConfig{
 		ClientId:     "vault",
 		ClientSecret: "secret123",
 		Realm:        "somerealm",
 		ServerUrl:    "http://example.com/auth",
-	})
+	}
+	err := writeConfig(t.Context(), config.StorageView, authProperties)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	requestedClientId := "myclient"
 	makeMock := func(expiresIn time.Duration) *keycloak.MockService {
-		jwt := testutil.JWT(expiresIn)
+		var (
+			jwt                 = testutil.JWT(expiresIn)
+			secretValue         = "mysecret123"
+			idOfRequestedClient = "123"
+		)
 
 		client := &keycloak.MockService{}
-		client.On("LoginClient", mock.Anything, "vault", "secret123", "somerealm").Return(
+		client.On("LoginClient", mock.Anything, authProperties.ClientId, authProperties.ClientSecret, authProperties.Realm).Return(
 			&keycloak.JWT{AccessToken: jwt}, nil)
-		idOfRequestedClient := "123"
-		client.On("GetClients", mock.Anything, jwt, "somerealm", keycloak.GetClientsParams{ClientID: &requestedClientId}).Return(
+		client.On("GetClients", mock.Anything, jwt, authProperties.Realm, keycloak.GetClientsParams{ClientID: &requestedClientId}).Return(
 			[]*keycloak.Client{{ID: &idOfRequestedClient}}, nil)
-		secretValue := "mysecret123"
-		client.On("GetClientSecret", mock.Anything, jwt, "somerealm", idOfRequestedClient).Return(
+		client.On("GetClientSecret", mock.Anything, jwt, authProperties.Realm, idOfRequestedClient).Return(
 			&keycloak.CredentialRepresentation{Value: &secretValue}, nil)
-		client.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(
+		client.On("GetWellKnownOpenidConfiguration", mock.Anything, authProperties.Realm).Return(
 			&keycloak.WellKnownOpenidConfiguration{Issuer: "THIS_IS_THE_ISSUER"}, nil)
 		return client
 	}
