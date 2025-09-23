@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -19,7 +20,8 @@ type backend struct {
 
 	logger log.Logger
 
-	jwt *keycloak.JWT
+	jwtMutex sync.Mutex
+	jwt      map[ConnectionConfig]*keycloak.JWT
 }
 
 var _ logical.Factory = Factory
@@ -44,7 +46,9 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 
 func newBackend(conf *logical.BackendConfig) (*backend, error) {
 
-	b := &backend{}
+	b := &backend{
+		jwt: make(map[ConnectionConfig]*keycloak.JWT),
+	}
 
 	b.Backend = &framework.Backend{
 		Help:        strings.TrimSpace(keycloakHelp),

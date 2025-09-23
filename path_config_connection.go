@@ -162,11 +162,15 @@ func (b *backend) pathConnectionUpdateOfRealm(ctx context.Context, req *logical.
 		}
 	}
 
-	if err := writeConfigForKey(ctx, req.Storage, config, fmt.Sprintf(storagePerRealmKey, realm)); err != nil {
+	if err := writeConfigForKey(ctx, req.Storage, config, realmSpecificStorageKey(realm)); err != nil {
 		return nil, err
 	}
 
 	return nil, nil
+}
+
+func realmSpecificStorageKey(realm string) string {
+	return fmt.Sprintf(storagePerRealmKey, realm)
 }
 func (b *backend) pathConnectionDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 

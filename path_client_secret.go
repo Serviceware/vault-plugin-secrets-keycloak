@@ -146,8 +146,11 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloak.Service, *keycloak.JWT, error) {
 	goclaokClient := b.KeycloakServiceFactory(config.ServerUrl)
 
-	if b.jwt != nil && jwt.IsValidIn(b.jwt.AccessToken, time.Duration(5)*time.Second) {
-		return goclaokClient, b.jwt, nil
+	b.jwtMutex.Lock()
+	defer b.jwtMutex.Unlock()
+
+	if token, ok := b.jwt[config]; ok && jwt.IsValidIn(token.AccessToken, time.Duration(5)*time.Second) {
+		return goclaokClient, token, nil
 	}
 
 	token, err := goclaokClient.LoginClient(ctx, config.ClientId, config.ClientSecret, config.Realm)
@@ -155,7 +158,7 @@ func (b *backend) getClientAndAccessToken(ctx context.Context, config Connection
 		return nil, nil, fmt.Errorf("failed to login: %w", err)
 	}
 
-	b.jwt = token
+	b.jwt[config] = token
 	return goclaokClient, token, nil
 }
 

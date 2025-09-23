@@ -236,6 +236,100 @@ func TestBackend_OnlyLoginWhenNecessary(t *testing.T) {
 		})
 	}
 }
+func TestBackend_OnlyLoginWhenNecessaryWithDifferentConfigs(t *testing.T) {
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	authProperties1 := ConnectionConfig{
+		ClientId:     "vault1",
+		ClientSecret: "secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://bar.example.com/auth",
+	}
+	require.NoError(t, writeConfigForKey(t.Context(), config.StorageView, authProperties1, realmSpecificStorageKey(authProperties1.Realm)))
+
+	authProperties2 := ConnectionConfig{
+		ClientId:     "vault2",
+		ClientSecret: "secret567",
+		Realm:        "otherrealm",
+		ServerUrl:    "http://foo.example.com/auth",
+	}
+
+	require.NoError(t, writeConfigForKey(t.Context(), config.StorageView, authProperties2, realmSpecificStorageKey(authProperties2.Realm)))
+
+	requestedClientId := "myclient"
+	makeMock := func(expiresIn time.Duration) *keycloak.MockService {
+		var (
+			jwt1                = testutil.JWT(expiresIn)
+			jwt2                = testutil.JWT(expiresIn + 5*time.Second)
+			secretValue         = "mysecret123"
+			idOfRequestedClient = "123"
+		)
+
+		client := &keycloak.MockService{}
+		client.On("LoginClient", mock.Anything, authProperties1.ClientId, authProperties1.ClientSecret, authProperties1.Realm).Return(
+			&keycloak.JWT{AccessToken: jwt1}, nil)
+		client.On("GetClients", mock.Anything, jwt1, authProperties1.Realm, keycloak.GetClientsParams{ClientID: &requestedClientId}).Return(
+			[]*keycloak.Client{{ID: &idOfRequestedClient}}, nil)
+		client.On("GetClientSecret", mock.Anything, jwt1, authProperties1.Realm, idOfRequestedClient).Return(
+			&keycloak.CredentialRepresentation{Value: &secretValue}, nil)
+		client.On("GetWellKnownOpenidConfiguration", mock.Anything, authProperties1.Realm).Return(
+			&keycloak.WellKnownOpenidConfiguration{Issuer: "THIS_IS_THE_ISSUER"}, nil)
+
+		client.On("LoginClient", mock.Anything, authProperties2.ClientId, authProperties2.ClientSecret, authProperties2.Realm).Return(
+			&keycloak.JWT{AccessToken: jwt2}, nil)
+		client.On("GetClients", mock.Anything, jwt2, authProperties2.Realm, keycloak.GetClientsParams{ClientID: &requestedClientId}).Return(
+			[]*keycloak.Client{{ID: &idOfRequestedClient}}, nil)
+		client.On("GetClientSecret", mock.Anything, jwt2, authProperties2.Realm, idOfRequestedClient).Return(
+			&keycloak.CredentialRepresentation{Value: &secretValue}, nil)
+		client.On("GetWellKnownOpenidConfiguration", mock.Anything, authProperties2.Realm).Return(
+			&keycloak.WellKnownOpenidConfiguration{Issuer: "THIS_IS_THE_ISSUER"}, nil)
+		return client
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		b, err := newBackend(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		client := makeMock(10 * time.Second)
+		b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(client)
+		if err = b.Setup(t.Context(), config); err != nil {
+			t.Fatal(err)
+		}
+
+		request := &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "realms/somerealm/clients/" + requestedClientId + "/secret",
+			Storage:   config.StorageView,
+		}
+		// First request: Expect login and retrieve a token as we do not have one, initially.
+		resp, err := b.HandleRequest(t.Context(), request)
+		require.NoError(t, err)
+		require.False(t, resp != nil && resp.IsError())
+
+		// second request for other realm, should trigger another login
+		request = &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "realms/otherrealm/clients/" + requestedClientId + "/secret",
+			Storage:   config.StorageView,
+		}
+		// First request: Expect login and retrieve a token as we do not have one, initially.
+		resp, err = b.HandleRequest(t.Context(), request)
+		require.NoError(t, err)
+		require.False(t, resp != nil && resp.IsError())
+
+		// Second request after sleeping:
+		// Based on the concrete test case we might need to login again and request a new token.
+		resp, err = b.HandleRequest(t.Context(), request)
+		require.NoError(t, err)
+		require.False(t, resp != nil && resp.IsError())
+
+		client.AssertNumberOfCalls(t, "LoginClient", 2)
+
+	})
+
+}
 
 func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 	var resp *logical.Response
