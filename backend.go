@@ -18,6 +18,8 @@ type backend struct {
 	KeycloakServiceFactory keycloak.ServiceFactoryFunc
 
 	logger log.Logger
+
+	jwt *keycloak.JWT
 }
 
 var _ logical.Factory = Factory

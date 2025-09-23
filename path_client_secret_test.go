@@ -4,10 +4,14 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
+	testutil "github.com/Serviceware/vault-plugin-secrets-keycloak/util/test"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBackend_ReadClientSecretDeprecated(t *testing.T) {
@@ -147,6 +151,92 @@ func TestBackend_ReadClientSecret(t *testing.T) {
 		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
 	}
 }
+
+func TestBackend_OnlyLoginWhenNecessary(t *testing.T) {
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	authProperties := ConnectionConfig{
+		ClientId:     "vault",
+		ClientSecret: "secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}
+	err := writeConfig(t.Context(), config.StorageView, authProperties)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestedClientId := "myclient"
+	makeMock := func(expiresIn time.Duration) *keycloak.MockService {
+		var (
+			jwt                 = testutil.JWT(expiresIn)
+			secretValue         = "mysecret123"
+			idOfRequestedClient = "123"
+		)
+
+		client := &keycloak.MockService{}
+		client.On("LoginClient", mock.Anything, authProperties.ClientId, authProperties.ClientSecret, authProperties.Realm).Return(
+			&keycloak.JWT{AccessToken: jwt}, nil)
+		client.On("GetClients", mock.Anything, jwt, authProperties.Realm, keycloak.GetClientsParams{ClientID: &requestedClientId}).Return(
+			[]*keycloak.Client{{ID: &idOfRequestedClient}}, nil)
+		client.On("GetClientSecret", mock.Anything, jwt, authProperties.Realm, idOfRequestedClient).Return(
+			&keycloak.CredentialRepresentation{Value: &secretValue}, nil)
+		client.On("GetWellKnownOpenidConfiguration", mock.Anything, authProperties.Realm).Return(
+			&keycloak.WellKnownOpenidConfiguration{Issuer: "THIS_IS_THE_ISSUER"}, nil)
+		return client
+	}
+
+	tests := []struct {
+		name                  string
+		expiresIn             time.Duration
+		waitDuration          time.Duration
+		expectedNumberOfCalls int
+	}{
+		{name: "expired token", expiresIn: 0, expectedNumberOfCalls: 2},
+		{name: "valid token", expiresIn: 60 * time.Second, expectedNumberOfCalls: 1},
+		{name: "token expired after wait time", expiresIn: 60 * time.Second, waitDuration: 61 * time.Second, expectedNumberOfCalls: 2},
+		{name: "token valid but above safety threshold", expiresIn: 60 * time.Second, waitDuration: 56 * time.Second, expectedNumberOfCalls: 2},
+		{name: "token still valid after waiting", expiresIn: 60 * time.Second, waitDuration: 30 * time.Second, expectedNumberOfCalls: 1},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				b, err := newBackend(config)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				client := makeMock(test.expiresIn)
+				b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(client)
+				if err = b.Setup(t.Context(), config); err != nil {
+					t.Fatal(err)
+				}
+
+				request := &logical.Request{
+					Operation: logical.ReadOperation,
+					Path:      "clients/" + requestedClientId + "/secret",
+					Storage:   config.StorageView,
+				}
+				// First request: Expect login and retrieve a token as we do not have one, initially.
+				resp, err := b.HandleRequest(t.Context(), request)
+				require.NoError(t, err)
+				require.False(t, resp != nil && resp.IsError())
+
+				time.Sleep(test.waitDuration)
+
+				// Second request after sleeping:
+				// Based on the concrete test case we might need to login again and request a new token.
+				resp, err = b.HandleRequest(t.Context(), request)
+				require.NoError(t, err)
+				require.False(t, resp != nil && resp.IsError())
+
+				client.AssertNumberOfCalls(t, "LoginClient", test.expectedNumberOfCalls)
+			})
+		})
+	}
+}
+
 func TestBackend_ReadClientSecretWhenNotExists(t *testing.T) {
 	var resp *logical.Response
 	var err error

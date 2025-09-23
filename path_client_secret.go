@@ -3,8 +3,10 @@ package keycloak
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
+	"github.com/Serviceware/vault-plugin-secrets-keycloak/util/jwt"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 )
@@ -144,10 +146,16 @@ func (b *backend) readClientSecretOfRealm(ctx context.Context, realm string, cli
 func (b *backend) getClientAndAccessToken(ctx context.Context, config ConnectionConfig) (keycloak.Service, *keycloak.JWT, error) {
 	goclaokClient := b.KeycloakServiceFactory(config.ServerUrl)
 
+	if b.jwt != nil && jwt.IsValidIn(b.jwt.AccessToken, time.Duration(5)*time.Second) {
+		return goclaokClient, b.jwt, nil
+	}
+
 	token, err := goclaokClient.LoginClient(ctx, config.ClientId, config.ClientSecret, config.Realm)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to login: %w", err)
 	}
+
+	b.jwt = token
 	return goclaokClient, token, nil
 }
 
