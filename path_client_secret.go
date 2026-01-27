@@ -226,3 +226,90 @@ func (b *backend) pathRealmClientSecretRead(ctx context.Context, req *logical.Re
 
 	return response, nil
 }
+func pathRealmClientOptionalSecret(b *backend) *framework.Path {
+	return &framework.Path{
+		Pattern: "realms/" + framework.GenericNameRegex("realm") + "/clients/" + framework.GenericNameRegex("clientId") + "/optional-secret",
+		Fields: map[string]*framework.FieldSchema{
+			"clientId": {
+				Type:        framework.TypeString,
+				Description: "Name of the client.",
+			},
+			"realm": {
+				Type:        framework.TypeString,
+				Description: "Name of the realm.",
+			},
+		},
+
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ReadOperation: b.pathRealmClientOptionalSecretRead,
+		},
+	}
+}
+func (b *backend) pathRealmClientOptionalSecretRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	realm := d.Get("realm").(string)
+	if realm == "" {
+		return logical.ErrorResponse("missing realm"), nil
+	}
+	clientId := d.Get("clientId").(string)
+	if clientId == "" {
+		return logical.ErrorResponse("missing client"), nil
+	}
+
+	config, err := readConfigForKey(ctx, req.Storage, fmt.Sprintf(storagePerRealmKey, realm))
+	if err != nil {
+		return logical.ErrorResponse("failed to read config"), err
+	}
+	// if config is empty, try to read the default config
+	if config.ServerUrl == "" {
+		config, err = readConfig(ctx, req.Storage)
+		if err != nil {
+			return logical.ErrorResponse("failed to read config"), err
+		}
+
+	}
+
+	clientSecret, err := b.readClientSecretOfRealm(ctx, realm, clientId, config)
+	if err != nil {
+		message := fmt.Sprintf("could not retrieve client secret for client %s in realm %s: %s", clientId, realm, err.Error())
+
+		resp := &logical.Response{
+			Data: map[string]interface{}{
+				"client_secret": "",
+				"client_id":     clientId,
+				"issuer":        "",
+				"error":         message,
+			},
+		}
+		resp.AddWarning(message)
+		return resp, nil
+
+	}
+
+	openidConfig, err := b.getGetWellKnownOpenidConfiguration(ctx, config, realm)
+	if err != nil {
+		message := fmt.Sprintf("could not retrieve issuer for client %s in realm %s: %s", clientId, realm, err.Error())
+		resp := &logical.Response{
+			Data: map[string]interface{}{
+				"client_secret": "",
+				"client_id":     clientId,
+				"issuer":        "",
+				"error":         message,
+			},
+		}
+		resp.AddWarning(message)
+		return resp, nil
+	}
+
+	// Generate the response
+	issuerUrl := openidConfig.Issuer
+	response := &logical.Response{
+		Data: map[string]interface{}{
+			"client_secret": clientSecret,
+			"client_id":     clientId,
+			"issuer":        issuerUrl,
+			"error":         nil,
+		},
+	}
+
+	return response, nil
+}

@@ -36,5 +36,7 @@ func (m *MockService) GetClientSecret(ctx context.Context, token string, realm s
 }
 func (m *MockService) GetWellKnownOpenidConfiguration(ctx context.Context, realm string) (*WellKnownOpenidConfiguration, error) {
 	args := m.Called(ctx, realm)
-	return args.Get(0).(*WellKnownOpenidConfiguration), args.Error(1)
+	wkoc, _ := args.Get(0).(*WellKnownOpenidConfiguration)
+
+	return wkoc, args.Error(1)
 }

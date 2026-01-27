@@ -2,6 +2,7 @@ package keycloak
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"testing/synctest"
@@ -516,6 +517,201 @@ func TestBackend_ReadClientSecretForRealm(t *testing.T) {
 		"client_secret": "mysecret123",
 		"client_id":     "myclient",
 		"issuer":        "THIS_IS_THE_ISSUER",
+	}
+
+	if !reflect.DeepEqual(resp.Data, expectedResponse) {
+		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
+	}
+}
+
+// optional secret route
+
+func TestBackend_ReadOptionalClientSecret(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gocloakClientMock := &keycloak.MockService{}
+
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
+		AccessToken: "access123",
+	}, nil)
+
+	requestedClientId := "myclient"
+	idOfRequestedClient := "123"
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+		ClientID: &requestedClientId,
+	}).Return([]*keycloak.Client{
+		{
+			ID: &idOfRequestedClient,
+		},
+	}, nil)
+	secretValue := "mysecret123"
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+		Value: &secretValue,
+	}, nil)
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
+		Issuer: "THIS_IS_THE_ISSUER",
+	}, nil)
+
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
+
+	writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vaultforrealm",
+		ClientSecret: "vaultforrealm_secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}, "config/realms/somerealm/connection")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+	path := "realms/somerealm/clients/" + requestedClientId + "/optional-secret"
+	readClientSecretReq := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      path,
+		Storage:   config.StorageView,
+	}
+	resp, err = b.HandleRequest(context.Background(), readClientSecretReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
+	}
+
+	expectedResponse := map[string]interface{}{
+		"client_secret": "mysecret123",
+		"client_id":     "myclient",
+		"issuer":        "THIS_IS_THE_ISSUER",
+		"error":         nil,
+	}
+
+	if !reflect.DeepEqual(resp.Data, expectedResponse) {
+		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
+	}
+}
+func TestBackend_ReadOptionalClientSecretRetrunsNoErrorIfKeycloakIsNotAvailable(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gocloakClientMock := &keycloak.MockService{}
+
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(nil, errors.New("Keycloak not available"))
+
+	requestedClientId := "myclient"
+
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
+	writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vaultforrealm",
+		ClientSecret: "vaultforrealm_secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}, "config/realms/somerealm/connection")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+	path := "realms/somerealm/clients/" + requestedClientId + "/optional-secret"
+	readClientSecretReq := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      path,
+		Storage:   config.StorageView,
+	}
+	resp, err = b.HandleRequest(context.Background(), readClientSecretReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
+	}
+
+	expectedResponse := map[string]interface{}{
+		"client_secret": "",
+		"client_id":     "myclient",
+		"issuer":        "",
+		"error":         "could not retrieve client secret for client myclient in realm somerealm: failed to login: Keycloak not available",
+	}
+
+	if !reflect.DeepEqual(resp.Data, expectedResponse) {
+		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
+	}
+}
+func TestBackend_ReadOptionalClientSecretRetrunsNoErrorIfKeycloakIsNotAvailable2(t *testing.T) {
+	var resp *logical.Response
+	var err error
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+	b, err := newBackend(config)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gocloakClientMock := &keycloak.MockService{}
+
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
+		AccessToken: "access123",
+	}, nil)
+
+	requestedClientId := "myclient"
+	idOfRequestedClient := "123"
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+		ClientID: &requestedClientId,
+	}).Return([]*keycloak.Client{
+		{
+			ID: &idOfRequestedClient,
+		},
+	}, nil)
+	secretValue := "mysecret123"
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+		Value: &secretValue,
+	}, nil)
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(nil, errors.New("Keycloak not available"))
+
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
+	writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vaultforrealm",
+		ClientSecret: "vaultforrealm_secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}, "config/realms/somerealm/connection")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Setup(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+	path := "realms/somerealm/clients/" + requestedClientId + "/optional-secret"
+	readClientSecretReq := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      path,
+		Storage:   config.StorageView,
+	}
+	resp, err = b.HandleRequest(context.Background(), readClientSecretReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
+	}
+
+	expectedResponse := map[string]interface{}{
+		"client_secret": "",
+		"client_id":     "myclient",
+		"issuer":        "",
+		"error":         "could not retrieve issuer for client myclient in realm somerealm: Keycloak not available",
 	}
 
 	if !reflect.DeepEqual(resp.Data, expectedResponse) {
