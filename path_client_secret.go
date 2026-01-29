@@ -201,7 +201,6 @@ func (b *backend) pathRealmClientSecretRead(ctx context.Context, req *logical.Re
 		if err != nil {
 			return logical.ErrorResponse("failed to read config"), err
 		}
-
 	}
 
 	clientSecret, err := b.readClientSecretOfRealm(ctx, realm, clientId, config)
@@ -265,13 +264,11 @@ func (b *backend) pathRealmClientOptionalSecretRead(ctx context.Context, req *lo
 		if err != nil {
 			return logical.ErrorResponse("failed to read config"), err
 		}
-
 	}
 
 	clientSecret, err := b.readClientSecretOfRealm(ctx, realm, clientId, config)
 	if err != nil {
 		message := fmt.Sprintf("could not retrieve client secret for client %s in realm %s: %s", clientId, realm, err.Error())
-
 		resp := &logical.Response{
 			Data: map[string]interface{}{
 				"client_secret": "",
@@ -282,7 +279,6 @@ func (b *backend) pathRealmClientOptionalSecretRead(ctx context.Context, req *lo
 		}
 		resp.AddWarning(message)
 		return resp, nil
-
 	}
 
 	openidConfig, err := b.getGetWellKnownOpenidConfiguration(ctx, config, realm)
