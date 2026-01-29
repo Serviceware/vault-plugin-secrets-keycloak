@@ -134,6 +134,36 @@ client_id        my-client
 issuer           https://auth.example.org/auth/realms/master
 ```
 
+### Read client secret with optional-secret (non-failing)
+
+The `optional-secret` endpoint works like the regular `/secret` endpoint but does not return an error if Keycloak is unavailable or the client secret cannot be retrieved. Instead, it returns empty values along with an error message in the response. This is useful for scenarios where you want to gracefully handle Keycloak unavailability.
+
+```
+vault read keycloak-client-secrets/realms/my-realm/clients/my-client/optional-secret
+```
+
+On success, the output looks like this:
+
+```
+Key              Value
+---              -----
+client_id        my-client
+client_secret    some-very-secret-value
+error            <nil>
+issuer           https://auth.example.org/auth/realms/master
+```
+
+If Keycloak is unavailable or the secret cannot be retrieved, the request still succeeds but returns empty values with an error message:
+
+```
+Key              Value
+---              -----
+client_id        my-client
+client_secret
+error            could not retrieve client secret for client my-client in realm my-realm: ...
+issuer
+```
+
 ## Test Run
 
 ```bash

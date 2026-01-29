@@ -75,6 +75,7 @@ func (b *backend) paths() []*framework.Path {
 		pathClientSecretDeprecated(b),
 		pathClientSecret(b),
 		pathRealmClientSecret(b),
+		pathRealmClientOptionalSecret(b),
 	}
 }
 
