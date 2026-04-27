@@ -731,18 +731,19 @@ func TestBackend_ReadOptionalClientSecretRetriesTransientLoginFailure(t *testing
 
 	gocloakClientMock := &keycloak.MockService{}
 	transientErr := &url.Error{Op: "Post", URL: "http://example.com/auth", Err: context.DeadlineExceeded}
+	jwt := testutil.JWT(60 * time.Second)
 	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(nil, transientErr).Once()
 	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
-		AccessToken: "access123",
+		AccessToken: jwt,
 	}, nil).Once()
 
 	requestedClientId := "myclient"
 	idOfRequestedClient := "123"
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, jwt, "somerealm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
 	}).Return([]*keycloak.Client{{ID: &idOfRequestedClient}}, nil).Once()
 	secretValue := "mysecret123"
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+	gocloakClientMock.On("GetClientSecret", mock.Anything, jwt, "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil).Once()
 	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
@@ -782,19 +783,20 @@ func TestBackend_ReadOptionalClientSecretRetriesTransientGetClientSecretFailure(
 	require.NoError(t, err)
 
 	gocloakClientMock := &keycloak.MockService{}
+	jwt := testutil.JWT(60 * time.Second)
 	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
-		AccessToken: "access123",
+		AccessToken: jwt,
 	}, nil).Once()
 
 	requestedClientId := "myclient"
 	idOfRequestedClient := "123"
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, jwt, "somerealm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
 	}).Return([]*keycloak.Client{{ID: &idOfRequestedClient}}, nil).Twice()
 	transientErr := &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return((*keycloak.CredentialRepresentation)(nil), transientErr).Once()
+	gocloakClientMock.On("GetClientSecret", mock.Anything, jwt, "somerealm", idOfRequestedClient).Return((*keycloak.CredentialRepresentation)(nil), transientErr).Once()
 	secretValue := "mysecret123"
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+	gocloakClientMock.On("GetClientSecret", mock.Anything, jwt, "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil).Once()
 	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
@@ -836,17 +838,18 @@ func TestBackend_ReadOptionalClientSecretRetriesTransientIssuerFailure(t *testin
 	require.NoError(t, err)
 
 	gocloakClientMock := &keycloak.MockService{}
+	jwt := testutil.JWT(60 * time.Second)
 	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
-		AccessToken: "access123",
+		AccessToken: jwt,
 	}, nil).Once()
 
 	requestedClientId := "myclient"
 	idOfRequestedClient := "123"
-	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+	gocloakClientMock.On("GetClients", mock.Anything, jwt, "somerealm", keycloak.GetClientsParams{
 		ClientID: &requestedClientId,
 	}).Return([]*keycloak.Client{{ID: &idOfRequestedClient}}, nil).Once()
 	secretValue := "mysecret123"
-	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+	gocloakClientMock.On("GetClientSecret", mock.Anything, jwt, "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
 		Value: &secretValue,
 	}, nil).Once()
 	transientErr := &url.Error{Op: "Get", URL: "http://example.com/auth/realms/somerealm/.well-known/openid-configuration", Err: context.DeadlineExceeded}
