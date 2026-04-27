@@ -173,12 +173,12 @@ func isTransientNetworkError(err error) bool {
 
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Err != nil {
-		return opErr.Timeout() || opErr.Temporary() || isTransientNetworkError(opErr.Err)
+		return opErr.Timeout() || isTransientNetworkError(opErr.Err)
 	}
 
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		return netErr.Timeout() || netErr.Temporary()
+		return netErr.Timeout()
 	}
 
 	return false
