@@ -138,7 +138,7 @@ func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, erro
 			return zero, err
 		}
 
-		timer := time.NewTimer(optionalSecretReadRetryDelay * time.Duration(attempt))
+		timer := time.NewTimer(optionalSecretReadRetryDelay)
 		select {
 		case <-ctx.Done():
 			if !timer.Stop() {
