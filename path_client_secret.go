@@ -2,13 +2,23 @@ package keycloak
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/url"
+	"syscall"
 	"time"
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/util/jwt"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+)
+
+const (
+	optionalSecretReadRetryAttempts = 3
+	optionalSecretReadRetryDelay    = 100 * time.Millisecond
 )
 
 func pathClientSecretDeprecated(b *backend) *framework.Path {
@@ -108,6 +118,70 @@ func (b *backend) pathClientSecretRead(ctx context.Context, req *logical.Request
 func (b *backend) getGetWellKnownOpenidConfiguration(ctx context.Context, config ConnectionConfig, realm string) (*keycloak.WellKnownOpenidConfiguration, error) {
 	client := b.KeycloakServiceFactory(config.ServerUrl)
 	return client.GetWellKnownOpenidConfiguration(ctx, realm)
+}
+
+func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, error)) (T, error) {
+	var zero T
+
+	for attempt := 0; attempt < optionalSecretReadRetryAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return zero, err
+		}
+
+		result, err := fn()
+		if err == nil {
+			return result, nil
+		}
+		if !isTransientNetworkError(err) || attempt == optionalSecretReadRetryAttempts-1 {
+			return zero, err
+		}
+
+		timer := time.NewTimer(optionalSecretReadRetryDelay * time.Duration(attempt+1))
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return zero, ctx.Err()
+		case <-timer.C:
+		}
+	}
+
+	return zero, nil
+}
+
+func isTransientNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, syscall.ECONNABORTED) ||
+		errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ETIMEDOUT) {
+		return true
+	}
+
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.Err != nil {
+		return urlErr.Timeout() || isTransientNetworkError(urlErr.Err)
+	}
+
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && opErr.Err != nil {
+		return opErr.Timeout() || opErr.Temporary() || isTransientNetworkError(opErr.Err)
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout() || netErr.Temporary()
+	}
+
+	return false
 }
 
 func (b *backend) readClientSecret(ctx context.Context, clientId string, config ConnectionConfig) (string, error) {
@@ -266,7 +340,9 @@ func (b *backend) pathRealmClientOptionalSecretRead(ctx context.Context, req *lo
 		}
 	}
 
-	clientSecret, err := b.readClientSecretOfRealm(ctx, realm, clientId, config)
+	clientSecret, err := retryOnTransientNetworkError(ctx, func() (string, error) {
+		return b.readClientSecretOfRealm(ctx, realm, clientId, config)
+	})
 	if err != nil {
 		message := fmt.Sprintf("could not retrieve client secret for client %s in realm %s: %s", clientId, realm, err.Error())
 		resp := &logical.Response{
@@ -281,7 +357,9 @@ func (b *backend) pathRealmClientOptionalSecretRead(ctx context.Context, req *lo
 		return resp, nil
 	}
 
-	openidConfig, err := b.getGetWellKnownOpenidConfiguration(ctx, config, realm)
+	openidConfig, err := retryOnTransientNetworkError(ctx, func() (*keycloak.WellKnownOpenidConfiguration, error) {
+		return b.getGetWellKnownOpenidConfiguration(ctx, config, realm)
+	})
 	if err != nil {
 		message := fmt.Sprintf("could not retrieve issuer for client %s in realm %s: %s", clientId, realm, err.Error())
 		resp := &logical.Response{

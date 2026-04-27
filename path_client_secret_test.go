@@ -3,7 +3,10 @@ package keycloak
 import (
 	"context"
 	"errors"
+	"net"
+	"net/url"
 	"reflect"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -717,4 +720,199 @@ func TestBackend_ReadOptionalClientSecretRetrunsNoErrorIfKeycloakIsNotAvailable2
 	if !reflect.DeepEqual(resp.Data, expectedResponse) {
 		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
 	}
+}
+
+func TestBackend_ReadOptionalClientSecretRetriesTransientLoginFailure(t *testing.T) {
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+
+	b, err := newBackend(config)
+	require.NoError(t, err)
+
+	gocloakClientMock := &keycloak.MockService{}
+	transientErr := &url.Error{Op: "Post", URL: "http://example.com/auth", Err: context.DeadlineExceeded}
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(nil, transientErr).Once()
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
+		AccessToken: "access123",
+	}, nil).Once()
+
+	requestedClientId := "myclient"
+	idOfRequestedClient := "123"
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+		ClientID: &requestedClientId,
+	}).Return([]*keycloak.Client{{ID: &idOfRequestedClient}}, nil).Once()
+	secretValue := "mysecret123"
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+		Value: &secretValue,
+	}, nil).Once()
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
+		Issuer: "THIS_IS_THE_ISSUER",
+	}, nil).Once()
+
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
+	require.NoError(t, writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vaultforrealm",
+		ClientSecret: "vaultforrealm_secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}, "config/realms/somerealm/connection"))
+	require.NoError(t, b.Setup(context.Background(), config))
+
+	resp, err := b.HandleRequest(context.Background(), &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "realms/somerealm/clients/" + requestedClientId + "/optional-secret",
+		Storage:   config.StorageView,
+	})
+	require.NoError(t, err)
+	require.False(t, resp != nil && resp.IsError())
+	require.Equal(t, map[string]interface{}{
+		"client_secret": "mysecret123",
+		"client_id":     "myclient",
+		"issuer":        "THIS_IS_THE_ISSUER",
+		"error":         nil,
+	}, resp.Data)
+	gocloakClientMock.AssertNumberOfCalls(t, "LoginClient", 2)
+}
+
+func TestBackend_ReadOptionalClientSecretRetriesTransientGetClientSecretFailure(t *testing.T) {
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+
+	b, err := newBackend(config)
+	require.NoError(t, err)
+
+	gocloakClientMock := &keycloak.MockService{}
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
+		AccessToken: "access123",
+	}, nil).Once()
+
+	requestedClientId := "myclient"
+	idOfRequestedClient := "123"
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+		ClientID: &requestedClientId,
+	}).Return([]*keycloak.Client{{ID: &idOfRequestedClient}}, nil).Twice()
+	transientErr := &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return((*keycloak.CredentialRepresentation)(nil), transientErr).Once()
+	secretValue := "mysecret123"
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+		Value: &secretValue,
+	}, nil).Once()
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
+		Issuer: "THIS_IS_THE_ISSUER",
+	}, nil).Once()
+
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
+	require.NoError(t, writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vaultforrealm",
+		ClientSecret: "vaultforrealm_secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}, "config/realms/somerealm/connection"))
+	require.NoError(t, b.Setup(context.Background(), config))
+
+	resp, err := b.HandleRequest(context.Background(), &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "realms/somerealm/clients/" + requestedClientId + "/optional-secret",
+		Storage:   config.StorageView,
+	})
+	require.NoError(t, err)
+	require.False(t, resp != nil && resp.IsError())
+	require.Equal(t, map[string]interface{}{
+		"client_secret": "mysecret123",
+		"client_id":     "myclient",
+		"issuer":        "THIS_IS_THE_ISSUER",
+		"error":         nil,
+	}, resp.Data)
+	gocloakClientMock.AssertNumberOfCalls(t, "LoginClient", 1)
+	gocloakClientMock.AssertNumberOfCalls(t, "GetClients", 2)
+	gocloakClientMock.AssertNumberOfCalls(t, "GetClientSecret", 2)
+}
+
+func TestBackend_ReadOptionalClientSecretRetriesTransientIssuerFailure(t *testing.T) {
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+
+	b, err := newBackend(config)
+	require.NoError(t, err)
+
+	gocloakClientMock := &keycloak.MockService{}
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(&keycloak.JWT{
+		AccessToken: "access123",
+	}, nil).Once()
+
+	requestedClientId := "myclient"
+	idOfRequestedClient := "123"
+	gocloakClientMock.On("GetClients", mock.Anything, "access123", "somerealm", keycloak.GetClientsParams{
+		ClientID: &requestedClientId,
+	}).Return([]*keycloak.Client{{ID: &idOfRequestedClient}}, nil).Once()
+	secretValue := "mysecret123"
+	gocloakClientMock.On("GetClientSecret", mock.Anything, "access123", "somerealm", idOfRequestedClient).Return(&keycloak.CredentialRepresentation{
+		Value: &secretValue,
+	}, nil).Once()
+	transientErr := &url.Error{Op: "Get", URL: "http://example.com/auth/realms/somerealm/.well-known/openid-configuration", Err: context.DeadlineExceeded}
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return((*keycloak.WellKnownOpenidConfiguration)(nil), transientErr).Once()
+	gocloakClientMock.On("GetWellKnownOpenidConfiguration", mock.Anything, "somerealm").Return(&keycloak.WellKnownOpenidConfiguration{
+		Issuer: "THIS_IS_THE_ISSUER",
+	}, nil).Once()
+
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
+	require.NoError(t, writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vaultforrealm",
+		ClientSecret: "vaultforrealm_secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}, "config/realms/somerealm/connection"))
+	require.NoError(t, b.Setup(context.Background(), config))
+
+	resp, err := b.HandleRequest(context.Background(), &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "realms/somerealm/clients/" + requestedClientId + "/optional-secret",
+		Storage:   config.StorageView,
+	})
+	require.NoError(t, err)
+	require.False(t, resp != nil && resp.IsError())
+	require.Equal(t, map[string]interface{}{
+		"client_secret": "mysecret123",
+		"client_id":     "myclient",
+		"issuer":        "THIS_IS_THE_ISSUER",
+		"error":         nil,
+	}, resp.Data)
+	gocloakClientMock.AssertNumberOfCalls(t, "GetWellKnownOpenidConfiguration", 2)
+	gocloakClientMock.AssertNumberOfCalls(t, "GetClientSecret", 1)
+}
+
+func TestBackend_ReadOptionalClientSecretDoesNotRetryNonTransientFailure(t *testing.T) {
+	config := logical.TestBackendConfig()
+	config.StorageView = &logical.InmemStorage{}
+
+	b, err := newBackend(config)
+	require.NoError(t, err)
+
+	gocloakClientMock := &keycloak.MockService{}
+	gocloakClientMock.On("LoginClient", mock.Anything, "vaultforrealm", "vaultforrealm_secret123", "somerealm").Return(nil, errors.New("Keycloak not available")).Once()
+
+	requestedClientId := "myclient"
+	b.KeycloakServiceFactory = keycloak.MockServiceFactoryFunc(gocloakClientMock)
+	require.NoError(t, writeConfigForKey(context.Background(), config.StorageView, ConnectionConfig{
+		ClientId:     "vaultforrealm",
+		ClientSecret: "vaultforrealm_secret123",
+		Realm:        "somerealm",
+		ServerUrl:    "http://example.com/auth",
+	}, "config/realms/somerealm/connection"))
+	require.NoError(t, b.Setup(context.Background(), config))
+
+	resp, err := b.HandleRequest(context.Background(), &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "realms/somerealm/clients/" + requestedClientId + "/optional-secret",
+		Storage:   config.StorageView,
+	})
+	require.NoError(t, err)
+	require.False(t, resp != nil && resp.IsError())
+	require.Equal(t, map[string]interface{}{
+		"client_secret": "",
+		"client_id":     "myclient",
+		"issuer":        "",
+		"error":         "could not retrieve client secret for client myclient in realm somerealm: failed to login: Keycloak not available",
+	}, resp.Data)
+	gocloakClientMock.AssertNumberOfCalls(t, "LoginClient", 1)
 }
