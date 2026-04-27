@@ -122,8 +122,9 @@ func (b *backend) getGetWellKnownOpenidConfiguration(ctx context.Context, config
 
 func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, error)) (T, error) {
 	var zero T
+	var lastErr error
 
-	for attempt := 0; attempt < optionalSecretReadRetryAttempts; attempt++ {
+	for attempt := 1; attempt <= optionalSecretReadRetryAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return zero, err
 		}
@@ -132,11 +133,12 @@ func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, erro
 		if err == nil {
 			return result, nil
 		}
-		if !isTransientNetworkError(err) || attempt == optionalSecretReadRetryAttempts-1 {
+		lastErr = err
+		if !isTransientNetworkError(err) || attempt == optionalSecretReadRetryAttempts {
 			return zero, err
 		}
 
-		timer := time.NewTimer(optionalSecretReadRetryDelay * time.Duration(attempt+1))
+		timer := time.NewTimer(optionalSecretReadRetryDelay * time.Duration(attempt))
 		select {
 		case <-ctx.Done():
 			if !timer.Stop() {
@@ -147,7 +149,7 @@ func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, erro
 		}
 	}
 
-	return zero, nil
+	return zero, lastErr
 }
 
 func isTransientNetworkError(err error) bool {
