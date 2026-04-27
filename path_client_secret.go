@@ -12,6 +12,7 @@ import (
 
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/keycloak"
 	"github.com/Serviceware/vault-plugin-secrets-keycloak/util/jwt"
+	retry "github.com/avast/retry-go/v4"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 )
@@ -121,35 +122,15 @@ func (b *backend) getGetWellKnownOpenidConfiguration(ctx context.Context, config
 }
 
 func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, error)) (T, error) {
-	var zero T
-	var lastErr error
-
-	for attempt := 1; attempt <= optionalSecretReadRetryAttempts; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return zero, err
-		}
-
-		result, err := fn()
-		if err == nil {
-			return result, nil
-		}
-		lastErr = err
-		if !isTransientNetworkError(err) || attempt == optionalSecretReadRetryAttempts {
-			return zero, err
-		}
-
-		timer := time.NewTimer(optionalSecretReadRetryDelay)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return zero, ctx.Err()
-		case <-timer.C:
-		}
-	}
-
-	return zero, lastErr
+	return retry.DoWithData(
+		fn,
+		retry.Attempts(optionalSecretReadRetryAttempts),
+		retry.Context(ctx),
+		retry.Delay(optionalSecretReadRetryDelay),
+		retry.DelayType(retry.FixedDelay),
+		retry.LastErrorOnly(true),
+		retry.RetryIf(isTransientNetworkError),
+	)
 }
 
 func isTransientNetworkError(err error) bool {

@@ -4,6 +4,7 @@ go 1.25.1
 
 require (
 	github.com/Nerzal/gocloak/v13 v13.9.0
+	github.com/avast/retry-go/v4 v4.6.1
 	github.com/docker/go-connections v0.5.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-hclog v1.6.3
