@@ -19,7 +19,7 @@ import (
 
 const (
 	optionalSecretReadRetryAttempts = 3
-	optionalSecretReadRetryDelay    = 100 * time.Millisecond
+	optionalSecretReadRetryDelay    = 500 * time.Millisecond
 )
 
 func pathClientSecretDeprecated(b *backend) *framework.Path {
@@ -127,7 +127,7 @@ func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, erro
 		retry.Attempts(optionalSecretReadRetryAttempts),
 		retry.Context(ctx),
 		retry.Delay(optionalSecretReadRetryDelay),
-		retry.DelayType(retry.FixedDelay),
+		retry.DelayType(retry.BackOffDelay),
 		retry.LastErrorOnly(true),
 		retry.RetryIf(isTransientNetworkError),
 	)
