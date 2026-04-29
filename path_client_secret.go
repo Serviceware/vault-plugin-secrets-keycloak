@@ -19,7 +19,7 @@ import (
 
 const (
 	// optionalSecretReadRetryAttempts is the maximum number of attempts for transient-error retries on the optional-secret route.
-	optionalSecretReadRetryAttempts = 3
+	optionalSecretReadRetryAttempts = 4
 	// optionalSecretReadRetryDelay is the base delay for the exponential back-off between retry attempts.
 	optionalSecretReadRetryDelay = 500 * time.Millisecond
 )
