@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/mitchellh/mapstructure"
@@ -507,7 +506,7 @@ func startKeycloak(t *testing.T, ctx context.Context, image string, cmd []string
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        image,
 			ExposedPorts: []string{"8080/tcp"},
-			WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort(nat.Port("8080")).WithStartupTimeout(time.Second * 90),
+			WaitingFor:   wait.ForHTTP("/").WithMethod("GET").WithPort("8080").WithStartupTimeout(time.Second * 90),
 			Env:          env,
 			Networks: []string{
 				networkName,
