@@ -138,6 +138,8 @@ issuer           https://auth.example.org/auth/realms/master
 
 The `optional-secret` endpoint works like the regular `/secret` endpoint but does not return an error if Keycloak is unavailable or the client secret cannot be retrieved. Instead, it returns empty values along with an error message in the response. This is useful for scenarios where you want to gracefully handle Keycloak unavailability.
 
+Before giving up and returning the empty-values response, the endpoint automatically retries transient network errors (e.g. connection reset, EOF, timeout) up to **4 attempts** in total, using an **exponential back-off** starting at 500 ms. Permanent errors (e.g. invalid credentials, unknown client) are not retried.
+
 ```
 vault read keycloak-client-secrets/realms/my-realm/clients/my-client/optional-secret
 ```
