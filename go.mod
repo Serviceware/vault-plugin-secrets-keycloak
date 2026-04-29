@@ -4,13 +4,14 @@ go 1.25.1
 
 require (
 	github.com/Nerzal/gocloak/v13 v13.9.0
+	github.com/avast/retry-go/v5 v5.0.0
 	github.com/docker/go-connections v0.5.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/vault/api v1.21.0
 	github.com/hashicorp/vault/sdk v0.15.2
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.35.0
 )
 
