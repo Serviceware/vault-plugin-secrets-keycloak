@@ -22,6 +22,9 @@ type backend struct {
 
 	jwtMutex sync.Mutex
 	jwt      map[ConnectionConfig]*keycloak.JWT
+
+	cacheMutex sync.RWMutex
+	cache      map[clientSecretCacheKey]*clientSecretCacheEntry
 }
 
 var _ logical.Factory = Factory
@@ -47,7 +50,8 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 func newBackend(conf *logical.BackendConfig) (*backend, error) {
 
 	b := &backend{
-		jwt: make(map[ConnectionConfig]*keycloak.JWT),
+		jwt:   make(map[ConnectionConfig]*keycloak.JWT),
+		cache: make(map[clientSecretCacheKey]*clientSecretCacheEntry),
 	}
 
 	b.Backend = &framework.Backend{
@@ -56,6 +60,7 @@ func newBackend(conf *logical.BackendConfig) (*backend, error) {
 		PathsSpecial: &logical.Paths{
 			SealWrapStorage: []string{
 				"config/connection",
+				storageCachePrefix,
 			},
 		},
 
