@@ -589,11 +589,13 @@ func TestBackend_ReadOptionalClientSecret(t *testing.T) {
 		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
 	}
 
+	requireRetrievedAt(t, resp.Data)
 	expectedResponse := map[string]interface{}{
 		"client_secret": "mysecret123",
 		"client_id":     "myclient",
 		"issuer":        "THIS_IS_THE_ISSUER",
 		"error":         nil,
+		"stale":         false,
 	}
 
 	if !reflect.DeepEqual(resp.Data, expectedResponse) {
@@ -710,16 +712,19 @@ func TestBackend_ReadOptionalClientSecretRetrunsNoErrorIfKeycloakIsNotAvailable2
 		t.Fatalf("bad: resp: %#v\nerr:%s", resp, err)
 	}
 
+	requireRetrievedAt(t, resp.Data)
 	expectedResponse := map[string]interface{}{
-		"client_secret": "",
+		"client_secret": "mysecret123",
 		"client_id":     "myclient",
-		"issuer":        "",
-		"error":         "could not retrieve issuer for client myclient in realm somerealm: Keycloak not available",
+		"issuer":        "http://example.com/auth/realms/somerealm",
+		"error":         nil,
+		"stale":         false,
 	}
 
 	if !reflect.DeepEqual(resp.Data, expectedResponse) {
 		t.Fatalf("Expected: %#v\nActual: %#v", expectedResponse, resp.Data)
 	}
+	require.Equal(t, []string{"using issuer derived from server_url: could not retrieve issuer for client myclient in realm somerealm: Keycloak not available"}, resp.Warnings)
 }
 
 func TestBackend_ReadOptionalClientSecretRetriesTransientLoginFailure(t *testing.T) {
@@ -766,11 +771,13 @@ func TestBackend_ReadOptionalClientSecretRetriesTransientLoginFailure(t *testing
 	})
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
+	requireRetrievedAt(t, resp.Data)
 	require.Equal(t, map[string]interface{}{
 		"client_secret": "mysecret123",
 		"client_id":     "myclient",
 		"issuer":        "THIS_IS_THE_ISSUER",
 		"error":         nil,
+		"stale":         false,
 	}, resp.Data)
 	gocloakClientMock.AssertNumberOfCalls(t, "LoginClient", 2)
 }
@@ -819,11 +826,13 @@ func TestBackend_ReadOptionalClientSecretRetriesTransientGetClientSecretFailure(
 	})
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
+	requireRetrievedAt(t, resp.Data)
 	require.Equal(t, map[string]interface{}{
 		"client_secret": "mysecret123",
 		"client_id":     "myclient",
 		"issuer":        "THIS_IS_THE_ISSUER",
 		"error":         nil,
+		"stale":         false,
 	}, resp.Data)
 	gocloakClientMock.AssertNumberOfCalls(t, "LoginClient", 1)
 	gocloakClientMock.AssertNumberOfCalls(t, "GetClients", 2)
@@ -874,11 +883,13 @@ func TestBackend_ReadOptionalClientSecretRetriesTransientIssuerFailure(t *testin
 	})
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
+	requireRetrievedAt(t, resp.Data)
 	require.Equal(t, map[string]interface{}{
 		"client_secret": "mysecret123",
 		"client_id":     "myclient",
 		"issuer":        "THIS_IS_THE_ISSUER",
 		"error":         nil,
+		"stale":         false,
 	}, resp.Data)
 	gocloakClientMock.AssertNumberOfCalls(t, "GetWellKnownOpenidConfiguration", 2)
 	gocloakClientMock.AssertNumberOfCalls(t, "GetClientSecret", 1)

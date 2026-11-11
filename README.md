@@ -153,9 +153,40 @@ client_id        my-client
 client_secret    some-very-secret-value
 error            <nil>
 issuer           https://auth.example.org/auth/realms/master
+retrieved_at     2026-09-24T08:15:00Z
+stale            false
 ```
 
-If Keycloak is unavailable or the secret cannot be retrieved, the request still succeeds but returns empty values with an error message:
+If the secret is retrieved but the issuer cannot be, the endpoint uses the last issuer it retrieved for this client (`stale: true`), or `<server_url>/realms/<realm>` if it has none. Either way the response carries a warning.
+
+#### Serving the last known secret during Keycloak outages
+
+Every successful read stores the client secret and issuer in Vault storage under `cache/realms/<realm>/clients/<clientId>`. This path is seal-wrapped on Vault Enterprise. If a later read fails with a transient error after all retries (network errors, timeouts, or HTTP 502/503/504), the endpoint returns the stored values instead of empty ones, as long as they were retrieved less than **24 hours** ago:
+
+```
+Key              Value
+---              -----
+client_id        my-client
+client_secret    some-very-secret-value
+error            <nil>
+issuer           https://auth.example.org/auth/realms/master
+retrieved_at     2026-09-24T08:15:00Z
+stale            true
+```
+
+The response also carries a warning with the original error. `retrieved_at` is the time the served secret was fetched from Keycloak.
+
+The stored value is not served when:
+
+- the error is permanent, e.g. unknown client or invalid credentials. A secret Keycloak no longer hands out should not keep being served.
+- the stored value is 24 hours old or older.
+- the connection config's `server_url` changed since the value was stored.
+
+In all of these cases the endpoint returns the empty-values response described below. Unchanged values are written to storage at most once per hour.
+
+On performance standby nodes, storage is read-only. There the endpoint serves values stored by the active node and keeps its own successful reads in memory only, so they are lost when the plugin restarts.
+
+If Keycloak is unavailable or the secret cannot be retrieved, and no stored value can be served, the request still succeeds but returns empty values with an error message:
 
 ```
 Key              Value

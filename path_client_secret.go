@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"syscall"
 	"time"
@@ -138,7 +139,7 @@ func retryOnTransientNetworkError[T any](ctx context.Context, fn func() (T, erro
 }
 
 // isTransientNetworkError reports whether err represents a transient network condition
-// that warrants a retry (e.g. connection reset, EOF, timeout).
+// that warrants a retry (e.g. connection reset, EOF, timeout, or HTTP 502/503/504).
 func isTransientNetworkError(err error) bool {
 	if err == nil {
 		return false
@@ -168,6 +169,19 @@ func isTransientNetworkError(err error) bool {
 	var netErr net.Error
 	if errors.As(err, &netErr) {
 		return netErr.Timeout()
+	}
+
+	var transportErr *keycloak.TransportError
+	if errors.As(err, &transportErr) {
+		return true
+	}
+
+	var statusErr *keycloak.HTTPStatusError
+	if errors.As(err, &statusErr) {
+		switch statusErr.StatusCode {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return true
+		}
 	}
 
 	return false
@@ -334,6 +348,26 @@ func (b *backend) pathRealmClientOptionalSecretRead(ctx context.Context, req *lo
 	})
 	if err != nil {
 		message := fmt.Sprintf("could not retrieve client secret for client %s in realm %s: %s", clientId, realm, err.Error())
+		if isTransientNetworkError(err) {
+			if cached := b.lookupCachedSecret(ctx, req.Storage, realm, clientId, config.ServerUrl); cached != nil && time.Since(cached.RetrievedAt) < optionalSecretMaxStaleness {
+				issuer := cached.Issuer
+				if issuer == "" {
+					issuer = constructedIssuer(cached.ServerUrl, realm)
+				}
+				resp := &logical.Response{
+					Data: map[string]interface{}{
+						"client_secret": cached.ClientSecret,
+						"client_id":     clientId,
+						"issuer":        issuer,
+						"error":         nil,
+						"stale":         true,
+						"retrieved_at":  cached.RetrievedAt.UTC().Format(time.RFC3339),
+					},
+				}
+				resp.AddWarning(fmt.Sprintf("serving cached client secret retrieved at %s because Keycloak is unavailable: %s", cached.RetrievedAt.UTC().Format(time.RFC3339), message))
+				return resp, nil
+			}
+		}
 		resp := &logical.Response{
 			Data: map[string]interface{}{
 				"client_secret": "",
@@ -345,34 +379,60 @@ func (b *backend) pathRealmClientOptionalSecretRead(ctx context.Context, req *lo
 		resp.AddWarning(message)
 		return resp, nil
 	}
+	retrievedAt := time.Now()
 
+	var warnings []string
+	stale := false
+	// cachedIssuer is what gets stored; it stays empty unless the issuer came from Keycloak, now or earlier.
+	var issuer, cachedIssuer string
 	openidConfig, err := retryOnTransientNetworkError(ctx, func() (*keycloak.WellKnownOpenidConfiguration, error) {
 		return b.getGetWellKnownOpenidConfiguration(ctx, config, realm)
 	})
-	if err != nil {
+	if err == nil {
+		issuer = openidConfig.Issuer
+		cachedIssuer = issuer
+	} else {
 		message := fmt.Sprintf("could not retrieve issuer for client %s in realm %s: %s", clientId, realm, err.Error())
-		resp := &logical.Response{
-			Data: map[string]interface{}{
-				"client_secret": "",
-				"client_id":     clientId,
-				"issuer":        "",
-				"error":         message,
-			},
+		cached := b.lookupCachedSecret(ctx, req.Storage, realm, clientId, config.ServerUrl)
+		if cached != nil {
+			cachedIssuer = cached.Issuer
 		}
-		resp.AddWarning(message)
-		return resp, nil
+		if isTransientNetworkError(err) && cachedIssuer != "" {
+			issuer = cachedIssuer
+			stale = true
+			warnings = append(warnings, fmt.Sprintf("serving cached issuer retrieved at %s: %s", cached.RetrievedAt.UTC().Format(time.RFC3339), message))
+		} else {
+			issuer = constructedIssuer(config.ServerUrl, realm)
+			warnings = append(warnings, fmt.Sprintf("using issuer derived from server_url: %s", message))
+		}
 	}
 
+	b.storeCachedSecret(ctx, req.Storage, clientSecretCacheKey{realm: realm, clientId: clientId}, cachedClientSecret{
+		ServerUrl:    config.ServerUrl,
+		ClientSecret: clientSecret,
+		Issuer:       cachedIssuer,
+		RetrievedAt:  retrievedAt,
+	})
+
 	// Generate the response
-	issuerUrl := openidConfig.Issuer
 	response := &logical.Response{
 		Data: map[string]interface{}{
 			"client_secret": clientSecret,
 			"client_id":     clientId,
-			"issuer":        issuerUrl,
+			"issuer":        issuer,
 			"error":         nil,
+			"stale":         stale,
+			"retrieved_at":  retrievedAt.UTC().Format(time.RFC3339),
 		},
+	}
+	for _, warning := range warnings {
+		response.AddWarning(warning)
 	}
 
 	return response, nil
+}
+
+// constructedIssuer is the issuer Keycloak uses by default. It is a fallback for when the issuer cannot be retrieved.
+func constructedIssuer(serverUrl string, realm string) string {
+	return serverUrl + "/realms/" + realm
 }
